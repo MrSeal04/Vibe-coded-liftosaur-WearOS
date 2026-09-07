@@ -1,0 +1,10 @@
+{
+  "data": {
+    "units": "lb",
+    "timers": {
+      "warmup": 90,
+      "workout": 180,
+      "superset": null
+    }
+  }
+}

@@ -89,3 +89,24 @@ embedded newlines. On a round watch screen this cannot be shown inline.
 **Consequence:** truncate hard on the workout screen (or show an info affordance
 that opens a scrollable detail screen). Strip/render markdown — do not dump raw
 `**` at the user.
+
+## 7. Numeric values can carry float artifacts
+
+A measurement came back in the shape `"12.300000190734863%"` — the server does not round
+before serialising. Anything derived from a float may arrive this way.
+
+**Consequence:** `Weight.parse` must accept arbitrary decimal precision (it does),
+and every display path must round explicitly. Never render a parsed value raw.
+
+## 8. Sanitising fixtures for the repo
+
+`fixtures/` (repo root) holds raw captures and is gitignored. Sanitised copies
+under `core/api/src/test/resources/fixtures/` are committed as test data:
+structure, types and nullability preserved, training content replaced.
+
+The `.gitignore` patterns are anchored (`/fixtures/`, `/backups/`) — unanchored
+`fixtures/` would also match the test-resource directory at any depth and
+silently exclude the committed test data.
+
+Measurement fixtures are deliberately **not** committed: they carry bodyweight
+and body-fat readings, and nothing in scope needs them.

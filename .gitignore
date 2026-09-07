@@ -6,9 +6,9 @@ secrets.properties
 *.jks
 
 # Full exports of real Liftosaur training history
-backups/
+/backups/
 # Captured API responses - contain real workout data
-fixtures/
+/fixtures/
 # IDs of test records pending cleanup
 .liftwear-testids
 

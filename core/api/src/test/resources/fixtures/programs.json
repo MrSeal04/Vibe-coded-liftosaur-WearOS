@@ -1,0 +1,16 @@
+{
+  "data": {
+    "programs": [
+      {
+        "id": "ceejxkjg",
+        "name": "Exercise 10",
+        "isCurrent": false
+      },
+      {
+        "id": "emvlmsls",
+        "name": "Exercise 11",
+        "isCurrent": true
+      }
+    ]
+  }
+}
