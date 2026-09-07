@@ -1,0 +1,29 @@
+# --- Secrets & personal data: never commit ---
+# (gitignore has no trailing comments - patterns must be alone on the line)
+local.properties
+secrets.properties
+*.keystore
+*.jks
+
+# Full exports of real Liftosaur training history
+backups/
+# Captured API responses - contain real workout data
+fixtures/
+# IDs of test records pending cleanup
+.liftwear-testids
+
+# --- Android / Gradle ---
+*.iml
+.gradle/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+output.json
+
+# --- IDE ---
+.idea/
+*.log
+
+# --- OS ---
+.DS_Store

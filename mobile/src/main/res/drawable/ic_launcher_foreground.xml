@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Barbell mark: two plates, a bar, and knurl collars. Drawn on the standard
+     108dp adaptive canvas; keeps well inside the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- bar -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,52 h36 v4 h-36 z" />
+
+    <!-- inner collars -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,47 h5 v14 h-5 z M71,47 h5 v14 h-5 z" />
+
+    <!-- outer plates -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,41 h6 v26 h-6 z M78,41 h6 v26 h-6 z" />
+
+    <!-- end caps -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M19,49 h4 v10 h-4 z M85,49 h4 v10 h-4 z" />
+</vector>
