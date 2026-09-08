@@ -5,6 +5,7 @@ import dev.fquo.liftwear.data.LiftWearContainer
 import dev.fquo.liftwear.data.outbox.OutboxDrainer
 import dev.fquo.liftwear.data.outbox.OutboxHost
 import dev.fquo.liftwear.datalayer.WearableNodes
+import dev.fquo.liftwear.wear.rest.WorkoutSession
 
 class LiftWearApplication : Application(), OutboxHost {
 
@@ -12,6 +13,9 @@ class LiftWearApplication : Application(), OutboxHost {
         private set
 
     lateinit var nodes: WearableNodes
+        private set
+
+    lateinit var session: WorkoutSession
         private set
 
     override val outboxDrainer: OutboxDrainer get() = container.outboxDrainer
@@ -22,5 +26,6 @@ class LiftWearApplication : Application(), OutboxHost {
         // breakage is attributable to a build rather than to "some watch app".
         container = LiftWearContainer(this, BuildConfig.VERSION_NAME)
         nodes = WearableNodes(this)
+        session = WorkoutSession(this)
     }
 }

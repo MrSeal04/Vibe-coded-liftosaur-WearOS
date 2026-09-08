@@ -10,6 +10,8 @@ import dev.fquo.liftwear.data.LiftWearContainer
 import dev.fquo.liftwear.data.workout.SetRef
 import dev.fquo.liftwear.data.workout.SyncState
 import dev.fquo.liftwear.data.workout.WorkoutPlan
+import dev.fquo.liftwear.wear.rest.RestState
+import dev.fquo.liftwear.wear.rest.WorkoutSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,7 +19,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class WorkoutViewModel(private val container: LiftWearContainer) : ViewModel() {
+class WorkoutViewModel(
+    private val container: LiftWearContainer,
+    private val session: WorkoutSession,
+) : ViewModel() {
+
+    val rest: StateFlow<RestState> = session.rest
 
     /**
      * Straight from Room. Nothing here waits on the network, so a set logged in a basement
@@ -56,15 +63,33 @@ class WorkoutViewModel(private val container: LiftWearContainer) : ViewModel() {
      */
     fun logSet(entryId: String, setId: String, completed: CompletedDto?, onDone: () -> Unit = {}) {
         if (_busy.value) return
+        val ref = setRef(entryId, setId)
         _busy.value = true
         viewModelScope.launch {
             when (val result = container.workouts.logSet(entryId, setId, completed)) {
-                is ApiResult.Ok -> onDone()
+                is ApiResult.Ok -> {
+                    // Rest starts the moment the set is recorded, not when the server
+                    // confirms it - the lifter has already racked the bar.
+                    if (ref != null && completed != null) {
+                        session.startRestAfter(
+                            set = ref.set,
+                            timers = container.settings.settings.value?.timers,
+                            label = "${ref.exerciseName} · ${setCounterLabel(ref)}",
+                        )
+                    }
+                    onDone()
+                }
                 is ApiResult.Failure -> _error.value = result.error
             }
             _busy.value = false
         }
     }
+
+    /** Called from the workout screen, which is by definition foreground. */
+    fun ensureSessionRunning() = session.ensureRunning()
+
+    /** Going again early, or acknowledging a finished rest. Never automatic. */
+    fun skipRest() = session.skipRest()
 
     /** Un-completing is the correction path for a mislogged set: queue a null `completed`. */
     fun undoSet(entryId: String, setId: String) = logSet(entryId, setId, completed = null)
@@ -74,7 +99,10 @@ class WorkoutViewModel(private val container: LiftWearContainer) : ViewModel() {
         _busy.value = true
         viewModelScope.launch {
             when (val result = container.workouts.finish()) {
-                is ApiResult.Ok -> _finished.value = true
+                is ApiResult.Ok -> {
+                    session.end()
+                    _finished.value = true
+                }
                 is ApiResult.Failure -> _error.value = result.error
             }
             _busy.value = false
@@ -86,7 +114,10 @@ class WorkoutViewModel(private val container: LiftWearContainer) : ViewModel() {
         _busy.value = true
         viewModelScope.launch {
             when (val result = container.workouts.discard()) {
-                is ApiResult.Ok -> onDone()
+                is ApiResult.Ok -> {
+                    session.end()
+                    onDone()
+                }
                 is ApiResult.Failure -> _error.value = result.error
             }
             _busy.value = false

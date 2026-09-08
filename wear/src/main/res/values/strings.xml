@@ -1,4 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">LiftWear</string>
+    <string name="channel_workout">Workout session</string>
+    <string name="session_active">Workout in progress</string>
+    <string name="rest_running">Resting</string>
+    <!-- #timer# is substituted by the system's own animated countdown. -->
+    <string name="rest_template">Rest #timer#</string>
+    <!--
+      Reviewed only at Play Console submission, which is moot for a sideloaded app, but the
+      manifest property is required for the specialUse foreground service type to be legal.
+    -->
+    <string name="fgs_special_use_justification">Keeps the rest timer between sets running and its countdown visible on the watch face while the app is closed. LiftWear reads no sensors.</string>
 </resources>

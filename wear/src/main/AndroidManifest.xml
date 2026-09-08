@@ -46,6 +46,25 @@
           prefix: /liftwear/credentials/ack is a message meant for the phone, and this
           service has no business waking for it.
         -->
+        <!--
+          Runs for the life of a workout so the rest timer exists outside the app.
+          specialUse, not health: health requires a sensor permission, and LiftWear reads
+          no sensors. Android 14+ throws on a type mismatch, so this is enforced.
+        -->
+        <service
+            android:name=".rest.WorkoutSessionService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="@string/fgs_special_use_justification" />
+        </service>
+
+        <!-- Fires the rest buzz whether or not the app is open. -->
+        <receiver
+            android:name=".rest.RestAlarmReceiver"
+            android:exported="false" />
+
         <service
             android:name=".sync.CredentialListenerService"
             android:exported="true"

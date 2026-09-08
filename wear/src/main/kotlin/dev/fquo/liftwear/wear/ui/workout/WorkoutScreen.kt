@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,6 +30,9 @@ import dev.fquo.liftwear.api.dto.EntryDto
 import dev.fquo.liftwear.api.dto.SetDto
 import dev.fquo.liftwear.data.workout.SetRef
 import dev.fquo.liftwear.data.workout.SyncState
+import dev.fquo.liftwear.wear.rest.RequestNotificationPermission
+import dev.fquo.liftwear.wear.rest.RestPhase
+import dev.fquo.liftwear.wear.rest.RestState
 import dev.fquo.liftwear.data.workout.WorkoutPlan
 import dev.fquo.liftwear.wear.ui.bezelStroke
 import dev.fquo.liftwear.wear.ui.circularPadding
@@ -65,6 +69,7 @@ fun WorkoutScreen(
     val workout by viewModel.workout.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val sync by viewModel.sync.collectAsStateWithLifecycle()
+    val rest by viewModel.rest.collectAsStateWithLifecycle()
 
     val current = workout
     if (current == null) {
@@ -79,6 +84,14 @@ fun WorkoutScreen(
     val progress = WorkoutPlan.progress(current)
     val allDone = WorkoutPlan.isFinished(current)
 
+    // The foreground service is what keeps the rest timer and its watch-face chip alive once
+    // the app is closed. Started from here because this screen is by definition foreground,
+    // and Android 12+ refuses a background foreground-service start.
+    RequestNotificationPermission()
+    LaunchedEffect(Unit) { viewModel.ensureSessionRunning() }
+
+    val now by rememberRestNow(rest)
+
     // Open on the exercise the lifter is actually on, not on the first one.
     val startPage = WorkoutPlan.firstIncomplete(current)?.entryIndex ?: 0
     val pagerState = rememberPagerState(initialPage = startPage) { current.entries.size }
@@ -92,10 +105,14 @@ fun WorkoutScreen(
                 ref = ref,
                 busy = busy,
                 sync = sync,
+                rest = rest,
+                now = now,
                 progressFraction = progress.fraction,
                 allDone = allDone,
                 onPrimary = {
                     when {
+                        // Resting: the button acknowledges it. Nothing advances on its own.
+                        rest.isActive -> viewModel.skipRest()
                         allDone && ref?.isCompleted == true -> onFinish()
                         ref != null && !ref.isCompleted -> onConfirmSet(ref.entryId, ref.setId)
                         else -> onOpenSetList(page)
@@ -113,6 +130,8 @@ internal fun ExerciseFocusPage(
     ref: SetRef?,
     busy: Boolean,
     sync: SyncState,
+    rest: RestState = RestState(),
+    now: Long = 0L,
     progressFraction: Float,
     allDone: Boolean,
     onPrimary: () -> Unit,
@@ -120,8 +139,11 @@ internal fun ExerciseFocusPage(
 ) {
     ScreenScaffold {
         // The arc is drawn first so the numbers sit on top of it, never the other way round.
+        val resting = rest.isActive
         CircularProgressIndicator(
-            progress = { progressFraction },
+            // The bezel is the one place a round watch has that a rectangular one does not,
+            // so it carries whichever of the two is currently urgent.
+            progress = { if (resting) rest.fraction(now) else progressFraction },
             startAngle = ARC_START,
             endAngle = ARC_END,
             strokeWidth = bezelStroke,
@@ -144,7 +166,7 @@ internal fun ExerciseFocusPage(
             verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
         ) {
             Text(
-                text = entry.name,
+                text = if (resting) rest.label ?: entry.name else entry.name,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -153,7 +175,9 @@ internal fun ExerciseFocusPage(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            if (ref == null) {
+            if (resting) {
+                RestNumbers(rest, now)
+            } else if (ref == null) {
                 Text("No sets", style = MaterialTheme.typography.titleMedium)
             } else {
                 FocusNumbers(ref.set)
@@ -214,6 +238,8 @@ internal fun ExerciseFocusPage(
         ) {
             Text(
                 text = when {
+                    rest.phase(now) == RestPhase.Done -> "Next set"
+                    rest.isActive -> "Skip rest"
                     allDone -> "Finish"
                     ref == null || ref.isCompleted -> "Sets"
                     else -> "Done"

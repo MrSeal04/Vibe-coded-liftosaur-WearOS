@@ -18,6 +18,7 @@ import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import dev.fquo.liftwear.data.LiftWearContainer
 import dev.fquo.liftwear.datalayer.WearableNodes
+import dev.fquo.liftwear.wear.rest.WorkoutSession
 import dev.fquo.liftwear.wear.ui.common.LoadingScreen
 import dev.fquo.liftwear.wear.ui.common.MessageScreen
 import dev.fquo.liftwear.wear.ui.home.HomeScreen
@@ -48,7 +49,12 @@ object Routes {
 }
 
 @Composable
-fun LiftWearApp(container: LiftWearContainer, nodes: WearableNodes, version: String) {
+fun LiftWearApp(
+    container: LiftWearContainer,
+    nodes: WearableNodes,
+    session: WorkoutSession,
+    version: String,
+) {
     MaterialTheme {
         AppScaffold {
             val pairing by container.pairing.collectAsStateWithLifecycle()
@@ -59,6 +65,7 @@ fun LiftWearApp(container: LiftWearContainer, nodes: WearableNodes, version: Str
                 else -> LiftWearNavHost(
                     container,
                     nodes,
+                    session,
                     version,
                     paired = pairing == LiftWearContainer.PairingState.Paired,
                 )
@@ -71,11 +78,12 @@ fun LiftWearApp(container: LiftWearContainer, nodes: WearableNodes, version: Str
 private fun LiftWearNavHost(
     container: LiftWearContainer,
     nodes: WearableNodes,
+    session: WorkoutSession,
     version: String,
     paired: Boolean,
 ) {
     val navController = rememberSwipeDismissableNavController()
-    val factory = rememberContainerFactory(container, nodes, version)
+    val factory = rememberContainerFactory(container, nodes, session, version)
 
     // Pairing state changes from two directions: a key revoked in Settings must land back
     // on setup rather than leave screens up that only produce 401s, and a key delivered by
@@ -192,12 +200,13 @@ private fun workoutViewModel(
 private fun rememberContainerFactory(
     container: LiftWearContainer,
     nodes: WearableNodes,
+    session: WorkoutSession,
     version: String,
-): ViewModelProvider.Factory = remember(container, nodes) {
+): ViewModelProvider.Factory = remember(container, nodes, session) {
     viewModelFactory {
         initializer { SetupViewModel(container, nodes) }
         initializer { HomeViewModel(container) }
-        initializer { WorkoutViewModel(container) }
+        initializer { WorkoutViewModel(container, session) }
         initializer { SettingsViewModel(container, version) }
     }
 }

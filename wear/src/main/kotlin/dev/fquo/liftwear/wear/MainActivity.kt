@@ -8,6 +8,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val app = application as LiftWearApplication
-        setContent { LiftWearApp(app.container, app.nodes, BuildConfig.VERSION_NAME) }
+        setContent { LiftWearApp(app.container, app.nodes, app.session, BuildConfig.VERSION_NAME) }
     }
 }

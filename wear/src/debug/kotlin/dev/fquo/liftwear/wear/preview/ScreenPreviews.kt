@@ -5,7 +5,10 @@ import androidx.wear.compose.material3.AppScaffold
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.ui.tooling.preview.WearPreviewDevices
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
+import androidx.compose.runtime.getValue
 import dev.fquo.liftwear.data.workout.SyncState
+import dev.fquo.liftwear.wear.rest.RestState
+import dev.fquo.liftwear.wear.ui.workout.rememberRestNow
 import dev.fquo.liftwear.data.workout.WorkoutPlan
 import dev.fquo.liftwear.wear.ui.home.HomeContent
 import dev.fquo.liftwear.wear.ui.setup.PhoneStatus
@@ -140,4 +143,54 @@ fun WaitingForPhonePreview() = Wrap {
 @Composable
 fun NoCompanionPreview() = Wrap {
     WaitingForPhone(phone = PhoneStatus.NoCompanion, onEnterHere = {})
+}
+
+/** Resting: the countdown takes the headline slot and the arc becomes the timer. */
+@WearPreviewDevices
+@WearPreviewFontScales
+@Composable
+fun RestRunningPreview() = Wrap {
+    val rest = RestState(
+        endsAt = System.currentTimeMillis() + 95_000,
+        durationSeconds = 180,
+        label = "Squat · set 2 / 4",
+    )
+    val now by rememberRestNow(rest)
+    ExerciseFocusPage(
+        entry = SampleWorkout.squat,
+        ref = WorkoutPlan.firstIncompleteIn(SampleWorkout.workout, 0),
+        busy = false,
+        sync = SyncState(),
+        rest = rest,
+        now = now,
+        progressFraction = 0.35f,
+        allDone = false,
+        onPrimary = {},
+        onOpenSetList = {},
+    )
+}
+
+/** Rest over. Nothing advances on its own - the lifter presses Next set. */
+@WearPreviewDevices
+@WearPreviewFontScales
+@Composable
+fun RestDonePreview() = Wrap {
+    val rest = RestState(
+        endsAt = System.currentTimeMillis() - 2_000,
+        durationSeconds = 180,
+        label = "Squat · set 2 / 4",
+    )
+    val now by rememberRestNow(rest)
+    ExerciseFocusPage(
+        entry = SampleWorkout.squat,
+        ref = WorkoutPlan.firstIncompleteIn(SampleWorkout.workout, 0),
+        busy = false,
+        sync = SyncState(),
+        rest = rest,
+        now = now,
+        progressFraction = 0.35f,
+        allDone = false,
+        onPrimary = {},
+        onOpenSetList = {},
+    )
 }
