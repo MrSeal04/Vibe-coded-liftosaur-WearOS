@@ -110,3 +110,64 @@ silently exclude the committed test data.
 
 Measurement fixtures are deliberately **not** committed: they carry bodyweight
 and body-fat readings, and nothing in scope needs them.
+
+---
+
+## Write-path findings (2026-09-08, Phase 4)
+
+First writes ever sent to the live account. Run against a disposable program
+(`LiftWear TEST - delete me`), with a fresh backup taken first; everything created
+was deleted afterwards and the account verified back to its prior record count, two
+programs, the real one still current.
+
+### 6. There is no API to set the current program — and it is not needed
+
+`POST /programs` and `DELETE /programs/:id` exist, `PUT /programs/:id` updates one,
+but nothing marks a program current. The plan's Phase 0 safeguard 2 said to "make it
+current for test sessions", which is not possible.
+
+It is also unnecessary, and the alternative is safer: **`POST /workout/start` takes an
+explicit `programId` and starts from it regardless of which program is current.**
+
+```
+current program: <real-program-id>        start body: {"programId":"zwslmjce", ...}
+returns:         programName "LiftWear TEST - delete me", dayName "Test Day"
+after the test:  <real-program-id> still isCurrent: true
+```
+
+All write testing therefore runs against a program that is never current, so the phone
+app never shows anything unexpected and the real program's day pointer never moves.
+`DELETE /programs/:id` refuses to delete the current program, which is a useful guard.
+
+### 7. `POST /workout/sets` is idempotent on replay — verified, not assumed
+
+The docs claim writes are last-writer-wins and safely repeatable. Confirmed directly,
+because the outbox's crash-recovery depends on it:
+
+```
+send 5 sets in one call  -> 5 sets completed, 5 sets on the entry
+send the IDENTICAL call  -> 5 sets completed, 5 sets on the entry
+```
+
+No duplicates, no error. A drain that dies after the server accepted a batch but before
+the rows were deleted is safe to repeat.
+
+### 8. Open question answered: client-invented setIds are REJECTED
+
+The Phase 0 note left this open. `POST /workout/set` with a made-up setId:
+
+```json
+{"error":{"code":"set_not_found","message":"No set 'liftwearfake01' in the current workout"}}
+```
+
+**Offline start is therefore impossible, confirmed by a write test rather than inferred**
+from setId instability. The Phase 4 decision to keep START out of the outbox is correct
+and can stop being provisional. Note `set_not_found` is a 4th `400`-family code not in
+the published error table; it maps to `BadRequest` today, which is the right behaviour
+(park, do not retry).
+
+### 9. entryIds are readable slugs, unlike setIds
+
+The test entry came back as `zercherSquat_barbell` — derived from exercise and equipment,
+not random. Only setIds are regenerated per call. Nothing depends on this, but it means an
+entryId is stable across calls in a way a setId is not.
