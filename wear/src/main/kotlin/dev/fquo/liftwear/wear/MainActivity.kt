@@ -7,7 +7,7 @@ import androidx.activity.compose.setContent
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val container = (application as LiftWearApplication).container
-        setContent { LiftWearApp(container, BuildConfig.VERSION_NAME) }
+        val app = application as LiftWearApplication
+        setContent { LiftWearApp(app.container, app.nodes, BuildConfig.VERSION_NAME) }
     }
 }

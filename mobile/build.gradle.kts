@@ -14,7 +14,10 @@ android {
         versionCode = 1
         versionName = "0.1.0"
     }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -22,6 +25,7 @@ android {
 }
 dependencies {
     implementation(project(":core:api"))
+    implementation(project(":core:data"))
     implementation(project(":core:datalayer"))
 
     implementation(platform(libs.compose.bom))
@@ -36,6 +40,8 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.datastore.preferences)
     implementation(libs.tink.android)
+    implementation(libs.play.services.wearable)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

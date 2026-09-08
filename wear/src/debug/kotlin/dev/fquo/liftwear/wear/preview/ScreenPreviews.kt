@@ -7,7 +7,9 @@ import androidx.wear.compose.ui.tooling.preview.WearPreviewDevices
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
 import dev.fquo.liftwear.data.workout.WorkoutPlan
 import dev.fquo.liftwear.wear.ui.home.HomeContent
+import dev.fquo.liftwear.wear.ui.setup.PhoneStatus
 import dev.fquo.liftwear.wear.ui.setup.SetupPrompt
+import dev.fquo.liftwear.wear.ui.setup.WaitingForPhone
 import dev.fquo.liftwear.wear.ui.workout.ExerciseFocusPage
 import dev.fquo.liftwear.wear.ui.workout.SetConfirmContent
 import dev.fquo.liftwear.wear.ui.workout.SetConfirmState
@@ -120,3 +122,18 @@ fun HomeIdlePreview() = Wrap {
 @WearPreviewFontScales
 @Composable
 fun SetupPreview() = Wrap { SetupPrompt(malformed = false, onEnterKey = {}) }
+
+@WearPreviewDevices
+@WearPreviewFontScales
+@Composable
+fun WaitingForPhonePreview() = Wrap {
+    WaitingForPhone(phone = PhoneStatus.Ready, onEnterHere = {})
+}
+
+/** A phone is there but the companion is not - different advice to "no phone". */
+@WearPreviewDevices
+@WearPreviewFontScales
+@Composable
+fun NoCompanionPreview() = Wrap {
+    WaitingForPhone(phone = PhoneStatus.NoCompanion, onEnterHere = {})
+}

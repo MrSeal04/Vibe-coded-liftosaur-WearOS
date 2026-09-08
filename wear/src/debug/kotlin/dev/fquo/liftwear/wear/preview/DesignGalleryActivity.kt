@@ -9,7 +9,9 @@ import androidx.wear.compose.material3.MaterialTheme
 import dev.fquo.liftwear.data.workout.WorkoutPlan
 import dev.fquo.liftwear.wear.ui.common.MessageScreen
 import dev.fquo.liftwear.wear.ui.home.HomeContent
+import dev.fquo.liftwear.wear.ui.setup.PhoneStatus
 import dev.fquo.liftwear.wear.ui.setup.SetupPrompt
+import dev.fquo.liftwear.wear.ui.setup.WaitingForPhone
 import dev.fquo.liftwear.wear.ui.workout.ExerciseFocusPage
 import dev.fquo.liftwear.wear.ui.workout.SetConfirmContent
 import dev.fquo.liftwear.wear.ui.workout.SetConfirmState
@@ -93,6 +95,8 @@ private fun Gallery(screen: String) {
             onOpenSettings = {},
         )
         "setup" -> SetupPrompt(malformed = false, onEnterKey = {})
+        "setup-phone" -> WaitingForPhone(phone = PhoneStatus.Ready, onEnterHere = {})
+        "setup-nocompanion" -> WaitingForPhone(phone = PhoneStatus.NoCompanion, onEnterHere = {})
         else -> MessageScreen("Unknown screen", screen)
     }
 }

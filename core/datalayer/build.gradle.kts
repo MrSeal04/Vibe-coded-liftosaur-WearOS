@@ -13,5 +13,9 @@ android {
 }
 dependencies {
     api(libs.play.services.wearable)
-    implementation(libs.kotlinx.coroutines)
+    api(libs.kotlinx.coroutines)
+    api(libs.kotlinx.coroutines.play.services)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

@@ -40,5 +40,23 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          Receives the API key from the phone companion. The path filter is literal, not a
+          prefix: /liftwear/credentials/ack is a message meant for the phone, and this
+          service has no business waking for it.
+        -->
+        <service
+            android:name=".sync.CredentialListenerService"
+            android:exported="true"
+            android:permission="com.google.android.gms.permission.BIND_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:path="/liftwear/credentials" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

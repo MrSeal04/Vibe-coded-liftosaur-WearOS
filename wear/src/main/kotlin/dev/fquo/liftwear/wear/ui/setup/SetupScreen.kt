@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
@@ -30,10 +31,9 @@ import dev.fquo.liftwear.wear.ui.common.LoadingScreen
 private const val REMOTE_INPUT_KEY = "liftwear_api_key"
 
 /**
- * Fallback key entry, for use before the phone companion exists (Phase 3) or when no
- * phone is paired. Typing an `lftsk_` key on a watch is miserable by nature, so this
- * hands off to the system remote-input surface, which offers voice and handwriting
- * alongside the keyboard.
+ * Setup leads with the phone because that is where a 60-character key can realistically be
+ * typed. Manual entry stays one tap away for a watch with no phone paired - it hands off to
+ * the system remote-input surface, which offers voice and handwriting as well as a keyboard.
  */
 @Composable
 fun SetupScreen(viewModel: SetupViewModel, onPaired: () -> Unit) {
@@ -52,10 +52,56 @@ fun SetupScreen(viewModel: SetupViewModel, onPaired: () -> Unit) {
     when {
         state.checking -> LoadingScreen("Checking key")
         state.error != null -> ErrorScreen(state.error!!, onUnpair = viewModel::dismissError)
-        else -> SetupPrompt(
-            malformed = state.malformed,
-            onEnterKey = { launcher.launch(buildRemoteInputIntent()) },
+        state.manualEntry || state.phone == PhoneStatus.NoPhone ->
+            SetupPrompt(
+                malformed = state.malformed,
+                onEnterKey = { launcher.launch(buildRemoteInputIntent()) },
+            )
+        else -> WaitingForPhone(
+            phone = state.phone,
+            onEnterHere = viewModel::showManualEntry,
         )
+    }
+}
+
+@Composable
+internal fun WaitingForPhone(phone: PhoneStatus, onEnterHere: () -> Unit) {
+    ScreenScaffold {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(horizontal = circularPadding()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
+        ) {
+            Text(
+                text = when (phone) {
+                    PhoneStatus.NoCompanion -> "Install LiftWear"
+                    else -> "Open on phone"
+                },
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+            )
+            Text(
+                text = when (phone) {
+                    PhoneStatus.NoCompanion ->
+                        "Your phone is connected but does not have the LiftWear app."
+                    else ->
+                        "Send your Liftosaur key from the LiftWear app on your phone. " +
+                            "It arrives here automatically."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                maxLines = 4,
+            )
+            Button(
+                onClick = onEnterHere,
+                colors = ButtonDefaults.filledTonalButtonColors(),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Type it here", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            }
+        }
     }
 }
 

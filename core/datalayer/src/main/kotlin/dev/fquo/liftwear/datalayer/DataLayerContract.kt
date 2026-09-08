@@ -16,6 +16,18 @@ object DataLayerContract {
     /** Capability advertised by the phone app so the watch can find it. */
     const val CAPABILITY_PHONE_APP = "liftwear_phone_app"
 
+    /** Capability advertised by the watch app so the phone can tell it is installed. */
+    const val CAPABILITY_WATCH_APP = "liftwear_watch_app"
+
     const val KEY_API_KEY = "api_key"
     const val KEY_ISSUED_AT = "issued_at"
+
+    /**
+     * How long an offered credential stays acceptable.
+     *
+     * DataItems persist and replicate, so an item that somehow survives cleanup should not
+     * still be able to pair a watch days later. The phone deletes on ack; this is the
+     * belt to that braces.
+     */
+    const val CREDENTIAL_TTL_MILLIS = 10 * 60 * 1000L
 }

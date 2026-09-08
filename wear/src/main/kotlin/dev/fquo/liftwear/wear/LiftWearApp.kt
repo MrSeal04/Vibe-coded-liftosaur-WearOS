@@ -10,12 +10,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
+import androidx.wear.compose.navigation.currentBackStackEntryAsState
 import androidx.wear.compose.material3.AppScaffold
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import dev.fquo.liftwear.data.LiftWearContainer
+import dev.fquo.liftwear.datalayer.WearableNodes
 import dev.fquo.liftwear.wear.ui.common.LoadingScreen
 import dev.fquo.liftwear.wear.ui.common.MessageScreen
 import dev.fquo.liftwear.wear.ui.home.HomeScreen
@@ -46,7 +48,7 @@ object Routes {
 }
 
 @Composable
-fun LiftWearApp(container: LiftWearContainer, version: String) {
+fun LiftWearApp(container: LiftWearContainer, nodes: WearableNodes, version: String) {
     MaterialTheme {
         AppScaffold {
             val pairing by container.pairing.collectAsStateWithLifecycle()
@@ -54,24 +56,42 @@ fun LiftWearApp(container: LiftWearContainer, version: String) {
                 // Unknown means the encrypted key has not been read back yet. Showing a
                 // spinner beats flashing the setup screen at an already-paired user.
                 LiftWearContainer.PairingState.Unknown -> LoadingScreen()
-                else -> LiftWearNavHost(container, version, paired = pairing == LiftWearContainer.PairingState.Paired)
+                else -> LiftWearNavHost(
+                    container,
+                    nodes,
+                    version,
+                    paired = pairing == LiftWearContainer.PairingState.Paired,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun LiftWearNavHost(container: LiftWearContainer, version: String, paired: Boolean) {
+private fun LiftWearNavHost(
+    container: LiftWearContainer,
+    nodes: WearableNodes,
+    version: String,
+    paired: Boolean,
+) {
     val navController = rememberSwipeDismissableNavController()
-    val factory = rememberContainerFactory(container, version)
+    val factory = rememberContainerFactory(container, nodes, version)
 
-    // A key can be revoked from Settings mid-session; that must land on setup rather than
-    // leaving screens up that will only produce 401s.
-    LaunchedEffect(paired) {
-        if (!paired) {
-            navController.navigate(Routes.SETUP) {
-                popUpTo(navController.graph.id) { inclusive = true }
-            }
+    // Pairing state changes from two directions: a key revoked in Settings must land back
+    // on setup rather than leave screens up that only produce 401s, and a key delivered by
+    // the phone companion must leave setup without the user touching the watch at all.
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    LaunchedEffect(paired, currentRoute) {
+        when {
+            !paired && currentRoute != null && currentRoute != Routes.SETUP ->
+                navController.navigate(Routes.SETUP) {
+                    popUpTo(navController.graph.id) { inclusive = true }
+                }
+
+            paired && currentRoute == Routes.SETUP ->
+                navController.navigate(Routes.HOME) {
+                    popUpTo(Routes.SETUP) { inclusive = true }
+                }
         }
     }
 
@@ -171,10 +191,11 @@ private fun workoutViewModel(
 @Composable
 private fun rememberContainerFactory(
     container: LiftWearContainer,
+    nodes: WearableNodes,
     version: String,
-): ViewModelProvider.Factory = remember(container) {
+): ViewModelProvider.Factory = remember(container, nodes) {
     viewModelFactory {
-        initializer { SetupViewModel(container) }
+        initializer { SetupViewModel(container, nodes) }
         initializer { HomeViewModel(container) }
         initializer { WorkoutViewModel(container) }
         initializer { SettingsViewModel(container, version) }

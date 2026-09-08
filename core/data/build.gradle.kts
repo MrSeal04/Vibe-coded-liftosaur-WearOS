@@ -7,7 +7,11 @@ android {
     namespace = "dev.fquo.liftwear.data"
     compileSdk = 37
     compileSdkMinor = 2
-    defaultConfig { minSdk = 30 }
+    defaultConfig {
+        minSdk = 30
+        // CredentialStore leans on the Android Keystore, which only exists on a device.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -27,4 +31,9 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.room.testing)
     testImplementation(libs.work.testing)
+
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.junit)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
 }
