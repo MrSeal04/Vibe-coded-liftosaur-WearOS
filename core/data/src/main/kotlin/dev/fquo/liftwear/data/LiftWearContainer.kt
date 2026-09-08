@@ -5,6 +5,8 @@ import dev.fquo.liftwear.api.LiftosaurApi
 import dev.fquo.liftwear.api.LiftosaurApiFactory
 import dev.fquo.liftwear.data.credentials.CredentialStore
 import dev.fquo.liftwear.data.credentials.DeviceId
+import dev.fquo.liftwear.data.db.LiftWearDatabase
+import dev.fquo.liftwear.data.outbox.OutboxDrainer
 import dev.fquo.liftwear.data.settings.SettingsRepository
 import dev.fquo.liftwear.data.workout.WorkoutRepository
 import kotlinx.coroutines.CoroutineScope
@@ -44,7 +46,26 @@ class LiftWearContainer(context: Context, clientVersion: String) {
         clientName = "liftwear/$clientVersion",
     )
 
-    val workouts = WorkoutRepository(api)
+    val database: LiftWearDatabase by lazy { LiftWearDatabase.create(appContext) }
+
+    val workouts by lazy {
+        WorkoutRepository(appContext, api, database, LiftosaurApiFactory.json)
+    }
+
+    /**
+     * Shared with [dev.fquo.liftwear.data.outbox.OutboxWorker] through the Application's
+     * [dev.fquo.liftwear.data.outbox.OutboxHost].
+     */
+    val outboxDrainer by lazy {
+        OutboxDrainer(
+            api = api,
+            outboxDao = database.outboxDao(),
+            cacheDao = database.workoutCacheDao(),
+            finishResultDao = database.finishResultDao(),
+            json = LiftosaurApiFactory.json,
+        )
+    }
+
     val settings = SettingsRepository(api)
 
     val deviceId: String get() = DeviceId.get(appContext)

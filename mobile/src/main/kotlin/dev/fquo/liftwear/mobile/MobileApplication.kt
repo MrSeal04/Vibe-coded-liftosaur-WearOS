@@ -2,11 +2,13 @@ package dev.fquo.liftwear.mobile
 
 import android.app.Application
 import dev.fquo.liftwear.data.LiftWearContainer
+import dev.fquo.liftwear.data.outbox.OutboxDrainer
+import dev.fquo.liftwear.data.outbox.OutboxHost
 import dev.fquo.liftwear.datalayer.CredentialHandoff
 import dev.fquo.liftwear.datalayer.WearableCredentialTransport
 import dev.fquo.liftwear.datalayer.WearableNodes
 
-class MobileApplication : Application() {
+class MobileApplication : Application(), OutboxHost {
 
     lateinit var container: LiftWearContainer
         private set
@@ -16,6 +18,8 @@ class MobileApplication : Application() {
 
     lateinit var nodes: WearableNodes
         private set
+
+    override val outboxDrainer: OutboxDrainer get() = container.outboxDrainer
 
     override fun onCreate() {
         super.onCreate()

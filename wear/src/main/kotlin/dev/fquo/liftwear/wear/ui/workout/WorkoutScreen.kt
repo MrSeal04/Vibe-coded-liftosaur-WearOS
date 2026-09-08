@@ -28,6 +28,7 @@ import dev.fquo.liftwear.api.Weight
 import dev.fquo.liftwear.api.dto.EntryDto
 import dev.fquo.liftwear.api.dto.SetDto
 import dev.fquo.liftwear.data.workout.SetRef
+import dev.fquo.liftwear.data.workout.SyncState
 import dev.fquo.liftwear.data.workout.WorkoutPlan
 import dev.fquo.liftwear.wear.ui.bezelStroke
 import dev.fquo.liftwear.wear.ui.circularPadding
@@ -63,6 +64,7 @@ fun WorkoutScreen(
 ) {
     val workout by viewModel.workout.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
+    val sync by viewModel.sync.collectAsStateWithLifecycle()
 
     val current = workout
     if (current == null) {
@@ -89,6 +91,7 @@ fun WorkoutScreen(
                 entry = entry,
                 ref = ref,
                 busy = busy,
+                sync = sync,
                 progressFraction = progress.fraction,
                 allDone = allDone,
                 onPrimary = {
@@ -109,6 +112,7 @@ internal fun ExerciseFocusPage(
     entry: EntryDto,
     ref: SetRef?,
     busy: Boolean,
+    sync: SyncState,
     progressFraction: Float,
     allDone: Boolean,
     onPrimary: () -> Unit,
@@ -174,13 +178,27 @@ internal fun ExerciseFocusPage(
                     )
                 }
 
-                // Offline, a set behind an update script can have its weight rewritten by
-                // the server once this one syncs. Say so rather than implying it is final.
-                if (entry.hasUpdateScript) {
+                // Two different things worth saying, and only one line to say them in.
+                // A parked queue needs the user; unsent sets are normal and just reassure.
+                val note = when {
+                    sync.needsAttention -> "sync needs attention"
+                    entry.hasUpdateScript && !sync.isSynced ->
+                        // Completing this set can rewrite later sets' weights, and only the
+                        // server can compute that. Do not imply the numbers are final.
+                        "may update after sync"
+                    sync.pending > 0 -> "${'$'}{sync.pending} to sync"
+                    entry.hasUpdateScript -> "may update after sync"
+                    else -> null
+                }
+                if (note != null) {
                     Text(
-                        text = "may update after sync",
+                        text = note,
                         style = MaterialTheme.typography.bodyExtraSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (sync.needsAttention) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth(),
                     )

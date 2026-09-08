@@ -30,6 +30,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, onUnpaired: () -> Unit) {
     val listState = rememberTransformingLazyColumnState()
     val spec = rememberTransformationSpec()
     var confirmUnpair by remember { mutableStateOf(false) }
+    var confirmAbandon by remember { mutableStateOf(false) }
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(state = listState, contentPadding = contentPadding) {
@@ -38,6 +39,28 @@ fun SettingsScreen(viewModel: SettingsViewModel, onUnpaired: () -> Unit) {
                     modifier = Modifier.transformedHeight(this, spec),
                     transformation = SurfaceTransformation(spec),
                 ) { Text("Settings") }
+            }
+            item { Row("Sync", state.syncLabel, spec) }
+            if (state.sync.parked > 0) {
+                item {
+                    Button(
+                        onClick = viewModel::retrySync,
+                        modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
+                        transformation = SurfaceTransformation(spec),
+                    ) {
+                        Text("Retry sync", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                    }
+                }
+                item {
+                    Button(
+                        onClick = { confirmAbandon = true },
+                        colors = ButtonDefaults.filledTonalButtonColors(),
+                        modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
+                        transformation = SurfaceTransformation(spec),
+                    ) {
+                        Text("Discard unsent", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                    }
+                }
             }
             item { Row("Units", state.units, spec) }
             item { Row("Rest default", state.restLabel, spec) }
@@ -57,6 +80,24 @@ fun SettingsScreen(viewModel: SettingsViewModel, onUnpaired: () -> Unit) {
             }
         }
     }
+
+    // Throwing away unsent sets is irreversible and is the only action here that loses
+    // training data, so it is confirmed separately from unlinking the key.
+    AlertDialog(
+        visible = confirmAbandon,
+        onDismissRequest = { confirmAbandon = false },
+        title = { Text("Discard unsent sets?", textAlign = TextAlign.Center) },
+        text = { Text("They have not reached Liftosaur and cannot be recovered.", textAlign = TextAlign.Center) },
+        confirmButton = {
+            AlertDialogDefaults.ConfirmButton(onClick = {
+                confirmAbandon = false
+                viewModel.abandonQueued()
+            })
+        },
+        dismissButton = {
+            AlertDialogDefaults.DismissButton(onClick = { confirmAbandon = false })
+        },
+    )
 
     AlertDialog(
         visible = confirmUnpair,

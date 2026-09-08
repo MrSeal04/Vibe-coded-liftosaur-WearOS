@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.fquo.liftwear.api.dto.TimersDto
 import dev.fquo.liftwear.data.LiftWearContainer
+import dev.fquo.liftwear.data.workout.SyncState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,7 +15,15 @@ data class SettingsUiState(
     val restLabel: String = "-",
     val deviceIdShort: String = "-",
     val version: String = "-",
-)
+    val sync: SyncState = SyncState(),
+) {
+    val syncLabel: String
+        get() = when {
+            sync.parked > 0 -> "${sync.parked} need attention"
+            sync.pending > 0 -> "${sync.pending} waiting to send"
+            else -> "Up to date"
+        }
+}
 
 class SettingsViewModel(
     private val container: LiftWearContainer,
@@ -31,6 +40,11 @@ class SettingsViewModel(
 
     init {
         viewModelScope.launch {
+            container.workouts.sync.collect { sync ->
+                _state.value = _state.value.copy(sync = sync)
+            }
+        }
+        viewModelScope.launch {
             container.settings.refresh()
             val settings = container.settings.settings.value
             _state.value = _state.value.copy(
@@ -40,6 +54,19 @@ class SettingsViewModel(
                 restLabel = "${settings?.timers?.workout ?: TimersDto.DEFAULT_REST_SECONDS}s",
             )
         }
+    }
+
+    /** "Try again" on a parked queue. Payloads are untouched. */
+    fun retrySync() {
+        viewModelScope.launch { container.workouts.retryParked() }
+    }
+
+    /**
+     * The only path that destroys logged sets, so it is never automatic and never shares a
+     * button with anything else.
+     */
+    fun abandonQueued() {
+        viewModelScope.launch { container.workouts.abandonQueued() }
     }
 
     fun unpair(onDone: () -> Unit) {

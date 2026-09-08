@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,7 +19,6 @@ import androidx.wear.compose.material3.AlertDialog
 import androidx.wear.compose.material3.AlertDialogDefaults
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.EdgeButton
-import androidx.wear.compose.material3.EdgeButtonSize
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
@@ -28,21 +26,29 @@ import dev.fquo.liftwear.data.workout.WorkoutPlan
 import dev.fquo.liftwear.wear.ui.circularPadding
 import dev.fquo.liftwear.wear.ui.common.LoadingScreen
 import dev.fquo.liftwear.wear.ui.common.MessageScreen
+import dev.fquo.liftwear.wear.ui.edgeButtonInset
+import dev.fquo.liftwear.wear.ui.primaryEdgeButtonSize
+import dev.fquo.liftwear.wear.ui.topArcInset
 
 @Composable
 fun FinishScreen(viewModel: WorkoutViewModel, onDone: () -> Unit) {
     val workout by viewModel.workout.collectAsStateWithLifecycle()
     val finished by viewModel.finished.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
+    val sync by viewModel.sync.collectAsStateWithLifecycle()
     var confirmDiscard by remember { mutableStateOf(false) }
 
-    val done = finished
-    if (done != null) {
-        // The API runs progressions on finish and returns the next scheduled day; showing
-        // it closes the loop without a round trip to /workout/next.
+    if (finished) {
+        // The finish is queued, not sent. Saying "logged" before the server has it would be
+        // a lie on a flaky connection - and the whole point of the queue is that it is fine
+        // for it not to have it yet.
         MessageScreen(
-            title = "Workout logged",
-            body = done.nextDay?.dayName?.let { "Next: $it" },
+            title = if (sync.isSynced) "Workout logged" else "Workout saved",
+            body = when {
+                sync.needsAttention -> "Some sets need attention before they can sync."
+                !sync.isSynced -> "${sync.pending} to sync when you are back online."
+                else -> null
+            },
             actionLabel = "Done",
             onAction = {
                 viewModel.consumeFinished()
@@ -66,7 +72,14 @@ fun FinishScreen(viewModel: WorkoutViewModel, onDone: () -> Unit) {
 
     ScreenScaffold {
         Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = circularPadding(), vertical = 24.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    start = circularPadding(),
+                    end = circularPadding(),
+                    top = topArcInset,
+                    bottom = edgeButtonInset,
+                ),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
         ) {
@@ -88,15 +101,15 @@ fun FinishScreen(viewModel: WorkoutViewModel, onDone: () -> Unit) {
 
         EdgeButton(
             onClick = viewModel::finish,
-            buttonSize = EdgeButtonSize.Medium,
+            buttonSize = primaryEdgeButtonSize,
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
             Text("Finish", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
     }
 
-    // Discard throws away the session server-side and cannot be undone, so it never
-    // happens on a single press.
+    // Discard throws the session away server-side and cannot be undone, so it never happens
+    // on a single press.
     AlertDialog(
         visible = confirmDiscard,
         onDismissRequest = { confirmDiscard = false },

@@ -5,6 +5,7 @@ import androidx.wear.compose.material3.AppScaffold
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.ui.tooling.preview.WearPreviewDevices
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
+import dev.fquo.liftwear.data.workout.SyncState
 import dev.fquo.liftwear.data.workout.WorkoutPlan
 import dev.fquo.liftwear.wear.ui.home.HomeContent
 import dev.fquo.liftwear.wear.ui.setup.PhoneStatus
@@ -36,6 +37,7 @@ fun WorkoutFocusPreview() = Wrap {
         entry = SampleWorkout.squat,
         ref = WorkoutPlan.firstIncompleteIn(workout, 0),
         busy = false,
+        sync = SyncState(),
         progressFraction = WorkoutPlan.progress(workout).fraction,
         allDone = false,
         onPrimary = {},
@@ -53,6 +55,7 @@ fun WorkoutFocusLongNamePreview() = Wrap {
         entry = SampleWorkout.press,
         ref = WorkoutPlan.firstIncompleteIn(workout, 1),
         busy = false,
+        sync = SyncState(),
         progressFraction = 0.4f,
         allDone = false,
         onPrimary = {},
@@ -70,6 +73,7 @@ fun WorkoutFocusBodyweightPreview() = Wrap {
         entry = SampleWorkout.bodyweight,
         ref = WorkoutPlan.firstIncompleteIn(workout, 2),
         busy = false,
+        sync = SyncState(),
         progressFraction = 0.9f,
         allDone = false,
         onPrimary = {},

@@ -2,15 +2,19 @@ package dev.fquo.liftwear.wear
 
 import android.app.Application
 import dev.fquo.liftwear.data.LiftWearContainer
+import dev.fquo.liftwear.data.outbox.OutboxDrainer
+import dev.fquo.liftwear.data.outbox.OutboxHost
 import dev.fquo.liftwear.datalayer.WearableNodes
 
-class LiftWearApplication : Application() {
+class LiftWearApplication : Application(), OutboxHost {
 
     lateinit var container: LiftWearContainer
         private set
 
     lateinit var nodes: WearableNodes
         private set
+
+    override val outboxDrainer: OutboxDrainer get() = container.outboxDrainer
 
     override fun onCreate() {
         super.onCreate()

@@ -20,6 +20,7 @@ import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import androidx.wear.compose.material3.SurfaceTransformation
 import dev.fquo.liftwear.api.dto.WorkoutDto
+import dev.fquo.liftwear.data.workout.SyncState
 import dev.fquo.liftwear.data.workout.WorkoutPlan
 import dev.fquo.liftwear.wear.ui.common.ErrorScreen
 import dev.fquo.liftwear.wear.ui.common.LoadingScreen
@@ -47,6 +48,8 @@ fun HomeScreen(
         else -> HomeContent(
             active = state.active,
             preview = state.preview,
+            sync = state.sync,
+            nextDayName = state.nextDayName,
             onPrimary = { if (state.active != null) onOpenWorkout() else viewModel.start() },
             onOpenHistory = onOpenHistory,
             onOpenSettings = onOpenSettings,
@@ -58,6 +61,8 @@ fun HomeScreen(
 internal fun HomeContent(
     active: WorkoutDto?,
     preview: WorkoutDto?,
+    sync: SyncState = SyncState(),
+    nextDayName: String? = null,
     onPrimary: () -> Unit,
     onOpenHistory: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -99,10 +104,13 @@ internal fun HomeContent(
             if (shown != null) {
                 item {
                     val progress = WorkoutPlan.progress(shown)
-                    val subtitle = if (active != null) {
-                        "${progress.completed} of ${progress.total} sets done"
-                    } else {
-                        "${shown.entries.size} exercises  ${progress.total} sets"
+                    val subtitle = when {
+                        active != null && sync.needsAttention -> "sync needs attention"
+                        active != null && sync.pending > 0 ->
+                            "${progress.completed} of ${progress.total} done  ·  ${sync.pending} to sync"
+                        active != null -> "${progress.completed} of ${progress.total} sets done"
+                        nextDayName != null -> "last workout logged  ·  next: $nextDayName"
+                        else -> "${shown.entries.size} exercises  ${progress.total} sets"
                     }
                     Text(
                         text = subtitle,

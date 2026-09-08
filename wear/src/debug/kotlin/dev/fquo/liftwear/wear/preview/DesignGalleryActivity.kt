@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
 import androidx.wear.compose.material3.AppScaffold
 import androidx.wear.compose.material3.MaterialTheme
+import dev.fquo.liftwear.data.workout.SyncState
 import dev.fquo.liftwear.data.workout.WorkoutPlan
 import dev.fquo.liftwear.wear.ui.common.MessageScreen
 import dev.fquo.liftwear.wear.ui.home.HomeContent
@@ -47,6 +48,7 @@ private fun Gallery(screen: String) {
             entry = SampleWorkout.squat,
             ref = WorkoutPlan.firstIncompleteIn(workout, 0),
             busy = false,
+            sync = SyncState(),
             progressFraction = WorkoutPlan.progress(workout).fraction,
             allDone = false,
             onPrimary = {},
@@ -56,6 +58,7 @@ private fun Gallery(screen: String) {
             entry = SampleWorkout.press,
             ref = WorkoutPlan.firstIncompleteIn(workout, 1),
             busy = false,
+            sync = SyncState(),
             progressFraction = 0.45f,
             allDone = false,
             onPrimary = {},
@@ -65,6 +68,7 @@ private fun Gallery(screen: String) {
             entry = SampleWorkout.bodyweight,
             ref = WorkoutPlan.firstIncompleteIn(workout, 2),
             busy = false,
+            sync = SyncState(),
             progressFraction = 0.9f,
             allDone = false,
             onPrimary = {},
