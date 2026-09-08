@@ -13,6 +13,7 @@ wearTiles = "1.6.2"
 protolayout = "1.4.2"
 wearOngoing = "1.1.0"
 wearCore = "1.4.0"
+wearInput = "1.2.0"
 watchfaceComplications = "1.3.0"
 
 room = "2.8.4"
@@ -42,6 +43,7 @@ wear-compose-foundation  = { module = "androidx.wear.compose:compose-foundation"
 wear-compose-navigation  = { module = "androidx.wear.compose:compose-navigation", version.ref = "wearCompose" }
 wear-compose-tooling     = { module = "androidx.wear.compose:compose-ui-tooling", version.ref = "wearCompose" }
 wear-core                = { module = "androidx.wear:wear",                        version.ref = "wearCore" }
+wear-input               = { module = "androidx.wear:wear-input",                  version.ref = "wearInput" }
 wear-ongoing             = { module = "androidx.wear:wear-ongoing",                version.ref = "wearOngoing" }
 wear-tiles               = { module = "androidx.wear.tiles:tiles",                 version.ref = "wearTiles" }
 wear-tiles-material      = { module = "androidx.wear.protolayout:protolayout-material3", version.ref = "protolayout" }

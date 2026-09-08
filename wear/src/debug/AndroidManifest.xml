@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!--
+          Debug-only. Renders each screen against invented data so the round-display pass
+          can be done on an emulator without touching the live Liftosaur account - starting
+          a real workout is a write, and writes only ever run against a disposable program.
+          Not exported to a launcher category: reachable only by explicit component name.
+        -->
+        <activity
+            android:name="dev.fquo.liftwear.wear.preview.DesignGalleryActivity"
+            android:exported="true"
+            android:taskAffinity=""
+            android:label="LiftWear Gallery"
+            android:theme="@android:style/Theme.DeviceDefault" />
+    </application>
+</manifest>

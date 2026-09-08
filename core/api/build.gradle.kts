@@ -20,11 +20,11 @@ android {
 
 
 dependencies {
-    implementation(libs.kotlinx.serialization)
-    implementation(libs.kotlinx.coroutines)
-    implementation(libs.retrofit)
+    api(libs.kotlinx.serialization)
+    api(libs.kotlinx.coroutines)
+    api(libs.retrofit)
     implementation(libs.retrofit.kotlinx.json)
-    implementation(libs.okhttp)
+    api(libs.okhttp)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

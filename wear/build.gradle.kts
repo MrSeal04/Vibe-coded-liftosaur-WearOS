@@ -15,7 +15,10 @@ android {
         versionCode = 1
         versionName = "0.1.0"
     }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true   // VERSION_NAME goes into the X-Liftosaur-Client header
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -34,8 +37,10 @@ dependencies {
     implementation(libs.wear.compose.material3)
     implementation(libs.wear.compose.foundation)
     implementation(libs.wear.compose.navigation)
-    implementation(libs.wear.compose.tooling)
+    // Previews live in src/debug so the WearPreview* annotations never ship in release.
+    debugImplementation(libs.wear.compose.tooling)
     implementation(libs.wear.core)
+    implementation(libs.wear.input)
     implementation(libs.wear.ongoing)
     implementation(libs.wear.tiles)
     implementation(libs.protolayout)
@@ -50,4 +55,5 @@ dependencies {
     implementation(libs.work.runtime)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

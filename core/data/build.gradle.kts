@@ -14,16 +14,17 @@ android {
     }
 }
 dependencies {
-    implementation(project(":core:api"))
+    api(project(":core:api"))
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
     implementation(libs.work.runtime)
-    implementation(libs.datastore.preferences)
+    api(libs.datastore.preferences)
     implementation(libs.tink.android)
     implementation(libs.kotlinx.serialization)
-    implementation(libs.kotlinx.coroutines)
+    api(libs.kotlinx.coroutines)
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.room.testing)
     testImplementation(libs.work.testing)
 }
