@@ -11,6 +11,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.wear.compose.foundation.AmbientMode
+import androidx.wear.compose.foundation.LocalAmbientModeManager
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
 import dev.fquo.liftwear.wear.rest.RestPhase
@@ -20,25 +22,37 @@ import dev.fquo.liftwear.wear.ui.hugeNumeralRange
 import kotlinx.coroutines.delay
 
 /**
- * A clock that ticks only while a rest is running.
+ * A clock that ticks only while a rest is running, and only while anyone can see it.
  *
  * Recomposing once a second is affordable when the screen is on and pointless when it is
  * not - and while it is off, the countdown the lifter sees is the system-rendered Ongoing
  * Activity chip, which costs this app nothing.
+ *
+ * In ambient the screen is technically still on, and this screen is still composed
+ * underneath the ambient surface, so the ticker would happily keep running against pixels
+ * nobody is being shown. It stops instead, and resumes with a fresh reading on wrist-raise.
  */
 @Composable
-fun rememberRestNow(rest: RestState): State<Long> = produceState(
-    initialValue = System.currentTimeMillis(),
-    key1 = rest.endsAt,
-) {
-    while (rest.isActive) {
+fun rememberRestNow(rest: RestState): State<Long> {
+    val ambient = LocalAmbientModeManager.current?.currentAmbientMode is AmbientMode.Ambient
+    return produceState(
+        initialValue = System.currentTimeMillis(),
+        key1 = rest.endsAt,
+        key2 = ambient,
+    ) {
+        if (ambient) {
+            value = System.currentTimeMillis()
+            return@produceState
+        }
+        while (rest.isActive) {
+            value = System.currentTimeMillis()
+            if (rest.phase(value) == RestPhase.Done) break
+            // Aligned to the second boundary so the digits change when they should, rather
+            // than drifting a fraction later on every tick.
+            delay(1_000L - (System.currentTimeMillis() % 1_000L))
+        }
         value = System.currentTimeMillis()
-        if (rest.phase(value) == RestPhase.Done) break
-        // Aligned to the second boundary so the digits change when they should, rather
-        // than drifting a fraction later on every tick.
-        delay(1_000L - (System.currentTimeMillis() % 1_000L))
     }
-    value = System.currentTimeMillis()
 }
 
 /** mm:ss below a minute is noise; seconds alone read faster at arm's length. */

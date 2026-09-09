@@ -6,7 +6,10 @@ import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.ui.tooling.preview.WearPreviewDevices
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
 import androidx.compose.runtime.getValue
+import androidx.wear.compose.foundation.AmbientMode
 import dev.fquo.liftwear.data.workout.SyncState
+import dev.fquo.liftwear.wear.ambient.AmbientSurface
+import dev.fquo.liftwear.wear.ambient.ambientContent
 import dev.fquo.liftwear.wear.rest.RestState
 import dev.fquo.liftwear.wear.ui.workout.rememberRestNow
 import dev.fquo.liftwear.data.workout.WorkoutPlan
@@ -192,5 +195,41 @@ fun RestDonePreview() = Wrap {
         allDone = false,
         onPrimary = {},
         onOpenSetList = {},
+    )
+}
+
+/**
+ * Ambient is where the small-screen/large-font case bites hardest: the layout has no
+ * EdgeButton and no arc to absorb space, so the four lines either fit or the numeral gets
+ * squeezed to nothing. Both burn-in states are previewed because they are different
+ * layouts, not just a different colour.
+ */
+@WearPreviewDevices
+@WearPreviewFontScales
+@Composable
+fun AmbientSetPreview() = MaterialTheme {
+    val now = System.currentTimeMillis()
+    AmbientSurface(
+        mode = AmbientMode.Ambient(isBurnInProtectionRequired = false, isLowBitAmbientSupported = false),
+        content = ambientContent(SampleWorkout.workout, RestState(), now),
+        now = now,
+        tick = 0,
+    )
+}
+
+@WearPreviewDevices
+@WearPreviewFontScales
+@Composable
+fun AmbientRestPreview() = MaterialTheme {
+    val now = System.currentTimeMillis()
+    AmbientSurface(
+        mode = AmbientMode.Ambient(isBurnInProtectionRequired = true, isLowBitAmbientSupported = true),
+        content = ambientContent(
+            workout = SampleWorkout.workout,
+            rest = RestState(endsAt = now + 145_000, durationSeconds = 180, label = "Squat · set 2 / 4"),
+            now = now,
+        ),
+        now = now,
+        tick = 3,
     )
 }

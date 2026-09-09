@@ -5,8 +5,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.wear.compose.foundation.AmbientMode
 import androidx.wear.compose.material3.AppScaffold
 import androidx.wear.compose.material3.MaterialTheme
+import dev.fquo.liftwear.wear.ambient.AmbientAware
+import dev.fquo.liftwear.wear.ambient.AmbientSurface
+import dev.fquo.liftwear.wear.ambient.AmbientWorkoutSurface
+import dev.fquo.liftwear.wear.ambient.ambientContent
 import dev.fquo.liftwear.data.workout.SyncState
 import dev.fquo.liftwear.data.workout.WorkoutPlan
 import dev.fquo.liftwear.wear.ui.common.MessageScreen
@@ -46,7 +51,10 @@ class DesignGalleryActivity : ComponentActivity() {
         }
         setContent {
             MaterialTheme {
-                AppScaffold { Gallery(screen) }
+                // The ambient screens replace the whole surface, TimeText included, so
+                // wrapping them in AppScaffold would put a second clock in the screenshot
+                // that the real app never shows.
+                if (screen.startsWith("ambient")) Gallery(screen) else AppScaffold { Gallery(screen) }
             }
         }
     }
@@ -130,6 +138,66 @@ private fun Gallery(screen: String) {
                 onPrimary = {},
                 onOpenSetList = {},
             )
+        }
+        // The four ambient cases, with the panel's capabilities forced rather than asked
+        // for: an emulator reports neither burn-in nor low-bit, so the two renderings that
+        // actually need checking would otherwise never appear on screen here.
+        "ambient", "ambient-rest", "ambient-done", "ambient-lowbit", "ambient-burnin" -> {
+            val now = System.currentTimeMillis()
+            val rest = when (screen) {
+                "ambient-rest" -> RestState(endsAt = now + 145_000, durationSeconds = 180, label = "Squat · set 2 / 4")
+                "ambient-done" -> RestState(endsAt = now - 2_000, durationSeconds = 180, label = "Squat · set 2 / 4")
+                else -> RestState()
+            }
+            AmbientSurface(
+                mode = AmbientMode.Ambient(
+                    isBurnInProtectionRequired = screen == "ambient-burnin",
+                    isLowBitAmbientSupported = screen == "ambient-lowbit",
+                ),
+                content = ambientContent(workout, rest, now),
+                now = now,
+                // Any non-zero tick shows the burn-in walk displaced rather than at rest.
+                tick = 3,
+            )
+        }
+        // The real wiring rather than a forced rendering: this turns always-on on for the
+        // activity and waits for the system to dim it. Drive it with
+        //   adb shell input keyevent 223   (sleep -> ambient)
+        //   adb shell input keyevent 224   (wake  -> interactive)
+        // No workout behind it: the surface falls back to the time alone. Reachable in
+        // real use because Wear OS 6 holds this app on the ambient screen whether or not it
+        // asked to be there.
+        "ambient-idle" -> {
+            val now = System.currentTimeMillis()
+            AmbientSurface(
+                mode = AmbientMode.Ambient(isBurnInProtectionRequired = false, isLowBitAmbientSupported = false),
+                content = ambientContent(workout = null, rest = RestState(), now = now),
+                now = now,
+                tick = 0,
+            )
+        }
+        "ambient-live" -> {
+            val rest = RestState(
+                endsAt = System.currentTimeMillis() + 145_000,
+                durationSeconds = 180,
+                label = "Squat · set 2 / 4",
+            )
+            AmbientAware(
+                ambient = { mode -> AmbientWorkoutSurface(mode, workout, rest) },
+            ) {
+                AppScaffold {
+                    ExerciseFocusPage(
+                        entry = SampleWorkout.squat,
+                        ref = WorkoutPlan.firstIncompleteIn(workout, 0),
+                        busy = false,
+                        sync = SyncState(),
+                        progressFraction = 0.35f,
+                        allDone = false,
+                        onPrimary = {},
+                        onOpenSetList = {},
+                    )
+                }
+            }
         }
         "setup" -> SetupPrompt(malformed = false, onEnterKey = {})
         "setup-phone" -> WaitingForPhone(phone = PhoneStatus.Ready, onEnterHere = {})

@@ -18,6 +18,8 @@ import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import dev.fquo.liftwear.data.LiftWearContainer
 import dev.fquo.liftwear.datalayer.WearableNodes
+import dev.fquo.liftwear.wear.ambient.AmbientAware
+import dev.fquo.liftwear.wear.ambient.AmbientWorkoutSurface
 import dev.fquo.liftwear.wear.rest.WorkoutSession
 import dev.fquo.liftwear.wear.ui.common.LoadingScreen
 import dev.fquo.liftwear.wear.ui.common.MessageScreen
@@ -56,19 +58,29 @@ fun LiftWearApp(
     version: String,
 ) {
     MaterialTheme {
-        AppScaffold {
-            val pairing by container.pairing.collectAsStateWithLifecycle()
-            when (pairing) {
-                // Unknown means the encrypted key has not been read back yet. Showing a
-                // spinner beats flashing the setup screen at an already-paired user.
-                LiftWearContainer.PairingState.Unknown -> LoadingScreen()
-                else -> LiftWearNavHost(
-                    container,
-                    nodes,
-                    session,
-                    version,
-                    paired = pairing == LiftWearContainer.PairingState.Paired,
-                )
+        // Read at the root rather than inside the workout screen: the wrist can drop on any
+        // screen, and what the ambient surface should say depends on the workout, not on
+        // which destination the nav host happens to be showing.
+        val workout by container.workouts.workout.collectAsStateWithLifecycle(initialValue = null)
+        val rest by session.rest.collectAsStateWithLifecycle()
+
+        AmbientAware(
+            ambient = { mode -> AmbientWorkoutSurface(mode, workout, rest) },
+        ) {
+            AppScaffold {
+                val pairing by container.pairing.collectAsStateWithLifecycle()
+                when (pairing) {
+                    // Unknown means the encrypted key has not been read back yet. Showing a
+                    // spinner beats flashing the setup screen at an already-paired user.
+                    LiftWearContainer.PairingState.Unknown -> LoadingScreen()
+                    else -> LiftWearNavHost(
+                        container,
+                        nodes,
+                        session,
+                        version,
+                        paired = pairing == LiftWearContainer.PairingState.Paired,
+                    )
+                }
             }
         }
     }
