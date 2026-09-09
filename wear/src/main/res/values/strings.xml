@@ -12,5 +12,6 @@
     -->
     <string name="tile_label">Today\'s workout</string>
     <string name="tile_description">The set you are on, or what today holds.</string>
+    <string name="complication_label">Workout progress</string>
     <string name="fgs_special_use_justification">Keeps the rest timer between sets running and its countdown visible on the watch face while the app is closed. LiftWear reads no sensors.</string>
 </resources>

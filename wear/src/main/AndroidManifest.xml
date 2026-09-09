@@ -78,6 +78,28 @@
                 android:resource="@drawable/tile_preview" />
         </service>
 
+        <!--
+          Reads Room and the rest controller only. UPDATE_PERIOD_SECONDS is 0 because
+          nothing here changes on a timer: the rest countdown is time-dependent text the
+          system animates, and everything else is pushed with an update request.
+        -->
+        <service
+            android:name=".complication.LiftWearComplicationService"
+            android:exported="true"
+            android:label="@string/complication_label"
+            android:icon="@drawable/ic_notification"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data
+                android:name="android.support.wearable.complications.SUPPORTED_TYPES"
+                android:value="SHORT_TEXT,RANGED_VALUE" />
+            <meta-data
+                android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
+                android:value="0" />
+        </service>
+
         <!-- Fires the rest buzz whether or not the app is open. -->
         <receiver
             android:name=".rest.RestAlarmReceiver"

@@ -6,6 +6,7 @@ import dev.fquo.liftwear.data.outbox.OutboxDrainer
 import dev.fquo.liftwear.data.outbox.OutboxHost
 import dev.fquo.liftwear.datalayer.WearableNodes
 import dev.fquo.liftwear.wear.rest.WorkoutSession
+import dev.fquo.liftwear.wear.complication.requestComplicationUpdate
 import dev.fquo.liftwear.wear.tile.requestTileUpdate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -13,6 +14,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class LiftWearApplication : Application(), OutboxHost {
@@ -37,11 +39,11 @@ class LiftWearApplication : Application(), OutboxHost {
         container = LiftWearContainer(this, BuildConfig.VERSION_NAME)
         nodes = WearableNodes(this)
         session = WorkoutSession(this)
-        keepTileFresh()
+        keepSurfacesFresh()
     }
 
     /**
-     * Redraws the Tile whenever the cached workout changes.
+     * Redraws the Tile and the complication whenever the cached workout changes.
      *
      * Here rather than in an Activity or the repository because the change can come from
      * either: a set logged on the wrist, or the outbox worker landing a batch with no UI on
@@ -50,7 +52,7 @@ class LiftWearApplication : Application(), OutboxHost {
      *
      * The first emission is dropped: it is Room replaying what the Tile already drew.
      */
-    private fun keepTileFresh() {
+    private fun keepSurfacesFresh() {
         scope.launch {
             combine(
                 container.workouts.workout,
@@ -59,7 +61,21 @@ class LiftWearApplication : Application(), OutboxHost {
             ) { workout, preview, sync -> Triple(workout, preview, sync) }
                 .distinctUntilChanged()
                 .drop(1)
-                .collect { requestTileUpdate(this@LiftWearApplication) }
+                .collect {
+                    requestTileUpdate(this@LiftWearApplication)
+                    requestComplicationUpdate(this@LiftWearApplication)
+                }
+        }
+
+        // Rest is its own signal and only the complication cares: a rest starting or being
+        // skipped changes nothing about the cached workout, and the countdown itself needs
+        // no updates at all once the deadline has been handed over.
+        scope.launch {
+            session.rest
+                .map { it.endsAt }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect { requestComplicationUpdate(this@LiftWearApplication) }
         }
     }
 }
