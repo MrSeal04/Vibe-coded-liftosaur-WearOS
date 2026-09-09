@@ -13,9 +13,9 @@ class WorkoutTextParserTest {
 
     private val sample = """
         2026-01-02 09:15:00 +00:00 / program: "Example Program" / dayName: "Day A" / week: 1 / dayInWeek: 4 / duration: 3332s / exercises: {
-          Scapular Pull Up / 2x4 0lb / target: 2x4 0lb 45s
-          Lat Pulldown, Leverage Machine / 1x13 85lb, 1x12 100lb, 1x12 100lb @10 / warmup: 1x0 50lb, 1x0 70lb / target: 2x12 85lb 90s, 1x12 85lb @10+ 90s
-          Chin Up / 3x0 0lb, 1x0 0lb @10 / target: 3x4 0lb 150s, 1x4 0lb @10+ 150s
+          Bent Over Row / 3x10 100lb / target: 3x10 100lb 45s
+          Incline Bench Press, Barbell / 1x10 95lb, 1x8 115lb, 1x8 115lb @10 / warmup: 1x10 45lb, 1x10 65lb / target: 2x8 95lb 90s, 1x8 95lb @10+ 90s
+          Chin Up / 3x6 0lb, 1x5 0lb @10 / target: 3x6 0lb 150s, 1x6 0lb @10+ 150s
         }
     """.trimIndent()
 
@@ -41,7 +41,7 @@ class WorkoutTextParserTest {
     @Test
     fun `finds every exercise`() {
         assertEquals(
-            listOf("Scapular Pull Up", "Lat Pulldown, Leverage Machine", "Chin Up"),
+            listOf("Bent Over Row", "Incline Bench Press, Barbell", "Chin Up"),
             parsed.exercises.map { it.name },
         )
         assertTrue("nothing should be unparsed", parsed.unparsed.isEmpty())
@@ -49,8 +49,8 @@ class WorkoutTextParserTest {
 
     @Test
     fun `keeps commas that belong to the exercise name`() {
-        // Splitting on ',' instead of ' / ' would truncate this to "Lat Pulldown".
-        assertEquals("Lat Pulldown, Leverage Machine", parsed.exercises[1].name)
+        // Splitting on ',' instead of ' / ' would truncate this to "Incline Bench Press".
+        assertEquals("Incline Bench Press, Barbell", parsed.exercises[1].name)
     }
 
     @Test
@@ -59,7 +59,7 @@ class WorkoutTextParserTest {
         assertEquals(3, lat.performed.size)
         assertEquals(2, lat.warmup.size)
         assertEquals(2, lat.target.size)
-        assertEquals(listOf("85lb", "100lb", "100lb"), lat.performed.map { it.weight })
+        assertEquals(listOf("95lb", "115lb", "115lb"), lat.performed.map { it.weight })
         assertEquals(10.0, lat.performed[2].rpe!!, 0.001)
     }
 
@@ -71,23 +71,23 @@ class WorkoutTextParserTest {
 
     @Test
     fun `detects AMRAP from a trailing plus on reps`() {
-        val g = WorkoutTextParser.parseSetGroup("1x8+ 85lb @10+ 150s")!!
+        val g = WorkoutTextParser.parseSetGroup("1x8+ 95lb @10+ 150s")!!
         assertEquals(1, g.sets)
         assertEquals(8, g.reps)
         assertTrue(g.isAmrap)
-        assertEquals("85lb", g.weight)
+        assertEquals("95lb", g.weight)
         assertEquals(10.0, g.rpe!!, 0.001)
         assertEquals(150, g.restSeconds)
     }
 
     @Test
     fun `non-amrap set groups are not flagged`() {
-        assertTrue(!WorkoutTextParser.parseSetGroup("2x12 85lb 90s")!!.isAmrap)
+        assertTrue(!WorkoutTextParser.parseSetGroup("2x8 95lb 90s")!!.isAmrap)
     }
 
     @Test
     fun `renders a compact summary for the watch`() {
-        assertEquals("1x13 85lb, 1x12 100lb, 1x12 100lb @10", parsed.exercises[1].summary())
+        assertEquals("1x10 95lb, 1x8 115lb, 1x8 115lb @10", parsed.exercises[1].summary())
     }
 
     @Test
@@ -101,6 +101,38 @@ class WorkoutTextParserTest {
         val r = WorkoutTextParser.parse(2L, weird)
         assertEquals(listOf("Bench Press"), r.exercises.map { it.name })
         assertEquals(listOf("::: something the format grew later :::"), r.unparsed)
+    }
+
+    /**
+     * The tolerance rule that matters: a line only becomes an exercise if it actually
+     * yielded sets. Without it any colon-free line - a comment, a header the format grew
+     * later - became a nameless exercise with nothing in it, and the detail screen printed
+     * it twice, once as the title and once as the summary falling back to the raw line.
+     */
+    @Test
+    fun `a line with no sets at all is unparsed, not a nameless exercise`() {
+        val weird = """
+            2026-01-02 09:15:00 +00:00 / program: "P" / exercises: {
+              Bench Press / 3x5 100lb
+              ~~ notation this build has never seen ~~
+            }
+        """.trimIndent()
+        val r = WorkoutTextParser.parse(5L, weird)
+        assertEquals(listOf("Bench Press"), r.exercises.map { it.name })
+        assertEquals(listOf("~~ notation this build has never seen ~~"), r.unparsed)
+    }
+
+    /** A skipped exercise is reported as skipped, never as though its target were done. */
+    @Test
+    fun `an exercise with a target but nothing performed says so`() {
+        val skipped = """
+            2026-01-02 / exercises: {
+              Chin Up / target: 3x6 0lb 150s
+            }
+        """.trimIndent()
+        val line = WorkoutTextParser.parse(6L, skipped).exercises.single()
+        assertEquals("Chin Up", line.name)
+        assertEquals("not logged", line.summary())
     }
 
     @Test

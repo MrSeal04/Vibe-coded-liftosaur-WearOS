@@ -1,6 +1,7 @@
 package dev.fquo.liftwear.api
 
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -77,6 +78,33 @@ class LiveApiSmokeTest {
                 "parser failed on lines: ${parsed.unparsed}",
                 parsed.unparsed.isEmpty(),
             )
+            // The history screen renders its dates from the record id rather than parsing
+            // the text, on the strength of this. If it ever stops holding, dates silently
+            // drift instead of failing, so it is asserted rather than assumed.
+            val fromText = parsed.date?.take(10)
+            val fromId = java.time.Instant.ofEpochMilli(record.id)
+                .atZone(java.time.ZoneOffset.UTC)
+                .toLocalDate()
+                .toString()
+            assertEquals("record ${record.id}: id and text disagree on the date", fromText, fromId)
         }
+    }
+
+    /** The cursor is the last record's id; walking it must not repeat or skip a record. */
+    @Test
+    fun `history pages with the cursor`() = runTest {
+        val api = api()
+        val first = api.getHistory(limit = 2).data
+        assumeTrue("need more than one page of history", first.hasMore)
+
+        assertEquals(first.records.last().id, first.nextCursor)
+        val second = api.getHistory(limit = 2, cursor = first.nextCursor).data
+
+        val overlap = first.records.map { it.id }.intersect(second.records.map { it.id }.toSet())
+        assertTrue("pages overlapped on $overlap", overlap.isEmpty())
+        assertTrue(
+            "second page should be older than the first",
+            second.records.all { it.id < first.records.last().id },
+        )
     }
 }

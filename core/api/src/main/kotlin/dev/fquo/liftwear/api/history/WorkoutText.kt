@@ -29,9 +29,19 @@ data class ExerciseLine(
     val target: List<SetGroup> = emptyList(),
     val raw: String = "",
 ) {
-    /** Compact one-line summary for a round screen, e.g. "1x13 85lb, 2x12 100lb". */
-    fun summary(): String =
-        if (performed.isEmpty()) raw else performed.joinToString(", ") { it.label() }
+    /**
+     * Compact one-line summary for a round screen, e.g. "1x13 85lb, 2x12 100lb".
+     *
+     * An exercise with a target but nothing performed is one that was skipped. Printing the
+     * target there would read as though it had been done, which is the one thing a training
+     * log must never do; and falling back to [raw] would simply repeat the name.
+     */
+    fun summary(): String = when {
+        performed.isNotEmpty() -> performed.joinToString(", ") { it.label() }
+        warmup.isNotEmpty() -> "warmup only"
+        target.isNotEmpty() -> "not logged"
+        else -> raw
+    }
 }
 
 data class SetGroup(

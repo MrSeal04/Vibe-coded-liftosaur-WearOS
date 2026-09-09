@@ -7,12 +7,15 @@ import androidx.wear.compose.ui.tooling.preview.WearPreviewDevices
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
 import androidx.compose.runtime.getValue
 import androidx.wear.compose.foundation.AmbientMode
+import dev.fquo.liftwear.data.history.HistoryPaging
 import dev.fquo.liftwear.data.workout.SyncState
 import dev.fquo.liftwear.wear.ambient.AmbientSurface
 import dev.fquo.liftwear.wear.ambient.ambientContent
 import dev.fquo.liftwear.wear.rest.RestState
 import dev.fquo.liftwear.wear.ui.workout.rememberRestNow
 import dev.fquo.liftwear.data.workout.WorkoutPlan
+import dev.fquo.liftwear.wear.ui.history.HistoryDetailContent
+import dev.fquo.liftwear.wear.ui.history.HistoryListContent
 import dev.fquo.liftwear.wear.ui.home.HomeContent
 import dev.fquo.liftwear.wear.ui.setup.PhoneStatus
 import dev.fquo.liftwear.wear.ui.setup.SetupPrompt
@@ -233,3 +236,31 @@ fun AmbientRestPreview() = MaterialTheme {
         tick = 3,
     )
 }
+
+/**
+ * History is the screen with the least control over its own content: exercise names and day
+ * names come from a text format this app does not own, and both routinely run long. The
+ * small-screen/large-font preview is where that shows.
+ */
+@WearPreviewDevices
+@WearPreviewFontScales
+@Composable
+fun HistoryListPreview() = Wrap {
+    HistoryListContent(
+        records = SampleWorkout.history,
+        paging = HistoryPaging(hasMore = true),
+        onOpenRecord = {},
+        onLoadMore = {},
+    )
+}
+
+@WearPreviewDevices
+@WearPreviewFontScales
+@Composable
+fun HistoryDetailPreview() = Wrap { HistoryDetailContent(SampleWorkout.history.first()) }
+
+/** The record the parser gave up on - it keeps its date and prints the raw line. */
+@WearPreviewDevices
+@WearPreviewFontScales
+@Composable
+fun HistoryUnreadablePreview() = Wrap { HistoryDetailContent(SampleWorkout.history.last()) }

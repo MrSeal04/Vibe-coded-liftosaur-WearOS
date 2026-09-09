@@ -6,6 +6,7 @@ import dev.fquo.liftwear.api.LiftosaurApiFactory
 import dev.fquo.liftwear.data.credentials.CredentialStore
 import dev.fquo.liftwear.data.credentials.DeviceId
 import dev.fquo.liftwear.data.db.LiftWearDatabase
+import dev.fquo.liftwear.data.history.HistoryRepository
 import dev.fquo.liftwear.data.outbox.OutboxDrainer
 import dev.fquo.liftwear.data.settings.SettingsRepository
 import dev.fquo.liftwear.data.workout.WorkoutRepository
@@ -65,6 +66,8 @@ class LiftWearContainer(context: Context, clientVersion: String) {
             json = LiftosaurApiFactory.json,
         )
     }
+
+    val history by lazy { HistoryRepository(api, database) }
 
     val settings = SettingsRepository(api)
 

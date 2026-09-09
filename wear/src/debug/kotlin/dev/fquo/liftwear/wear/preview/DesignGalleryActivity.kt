@@ -15,6 +15,9 @@ import dev.fquo.liftwear.wear.ambient.ambientContent
 import dev.fquo.liftwear.data.workout.SyncState
 import dev.fquo.liftwear.data.workout.WorkoutPlan
 import dev.fquo.liftwear.wear.ui.common.MessageScreen
+import dev.fquo.liftwear.data.history.HistoryPaging
+import dev.fquo.liftwear.wear.ui.history.HistoryDetailContent
+import dev.fquo.liftwear.wear.ui.history.HistoryListContent
 import dev.fquo.liftwear.wear.ui.home.HomeContent
 import dev.fquo.liftwear.wear.ui.setup.PhoneStatus
 import dev.fquo.liftwear.wear.ui.setup.SetupPrompt
@@ -260,6 +263,16 @@ private fun Gallery(screen: String) {
                 }
             }
         }
+        "history" -> HistoryListContent(
+            records = SampleWorkout.history,
+            paging = HistoryPaging(hasMore = true),
+            onOpenRecord = {},
+            onLoadMore = {},
+        )
+        "history-detail" -> HistoryDetailContent(SampleWorkout.history.first())
+        // The record the parser gave up on: it keeps its date and its place, and the raw
+        // line is printed rather than swallowed.
+        "history-unreadable" -> HistoryDetailContent(SampleWorkout.history.last())
         "setup" -> SetupPrompt(malformed = false, onEnterKey = {})
         "setup-phone" -> WaitingForPhone(phone = PhoneStatus.Ready, onEnterHere = {})
         "setup-nocompanion" -> WaitingForPhone(phone = PhoneStatus.NoCompanion, onEnterHere = {})

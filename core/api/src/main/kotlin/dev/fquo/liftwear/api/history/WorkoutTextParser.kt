@@ -7,7 +7,7 @@ package dev.fquo.liftwear.api.history
  * Shape:
  * ```
  * 2026-01-02 09:15:00 +00:00 / program: "X" / dayName: "Y" / week: 1 / dayInWeek: 4 / duration: 3332s / exercises: {
- *   Lat Pulldown, Leverage Machine / 1x13 85lb, 1x12 100lb @10 / warmup: 1x0 50lb / target: 2x12 85lb 90s
+ *   Incline Bench Press, Barbell / 1x10 95lb, 1x8 115lb @10 / warmup: 1x10 45lb / target: 2x8 95lb 90s
  * }
  * ```
  *
@@ -78,7 +78,7 @@ object WorkoutTextParser {
 
     private fun parseExerciseLine(line: String): ExerciseLine? {
         val segments = line.split(SEP).map { it.trim() }
-        // Exercise names legitimately contain commas ("Lat Pulldown, Leverage Machine"),
+        // Exercise names legitimately contain commas ("Incline Bench Press, Barbell"),
         // which is why the split is on " / " and the name is simply the first segment.
         val name = segments.firstOrNull()?.takeIf { it.isNotBlank() && !it.contains(':') }
             ?: return null
@@ -95,6 +95,12 @@ object WorkoutTextParser {
                 else -> performed += parseSetGroups(segment)
             }
         }
+
+        // A name on its own is not an exercise. Without this an unrecognised line that
+        // happens to contain no colon - a comment, a header the format grew later - becomes
+        // a nameless exercise with no sets, and the detail screen renders it twice: once as
+        // the title and once as the summary falling back to the raw line.
+        if (performed.isEmpty() && warmup.isEmpty() && target.isEmpty()) return null
 
         return ExerciseLine(name, performed, warmup, target, line)
     }

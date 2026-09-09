@@ -1,6 +1,7 @@
 package dev.fquo.liftwear.wear.preview
 
 import dev.fquo.liftwear.api.dto.CompletedDto
+import dev.fquo.liftwear.api.history.WorkoutTextParser
 import dev.fquo.liftwear.api.dto.DayDataDto
 import dev.fquo.liftwear.api.dto.EntryDto
 import dev.fquo.liftwear.api.dto.PlateDto
@@ -72,4 +73,42 @@ object SampleWorkout {
         startTime = 1_767_330_000_000L,
         entries = listOf(squat, press, bodyweight),
     )
+
+    /**
+     * Invented history in Liftosaur's Liftoscript "Workouts format", including one record
+     * the parser cannot read - that case is the whole reason the parser is tolerant, and it
+     * has to be visible in the gallery or nobody would ever look at how it renders.
+     *
+     * Ids are unix millis, which is what the real API uses as a record's identity.
+     */
+    val historyText: List<Pair<Long, String>> = listOf(
+        1_788_747_172_292L to """
+            2026-09-07 02:12:52 +00:00 / program: "Sample Program" / dayName: "Day B - Upper" / week: 1 / dayInWeek: 4 / duration: 3300s / exercises: {
+              Bent Over Row / 3x10 100lb / target: 3x10 100lb 90s
+              Incline Bench Press, Barbell / 3x8 135lb, 1x6 155lb @9 / warmup: 1x10 45lb / target: 3x8 135lb 120s
+              Face Pull / 3x15 30lb / target: 3x15 30lb 60s
+              Hammer Curl / 3x12 25lb / target: 3x12 25lb 60s
+            }
+        """.trimIndent(),
+        1_788_655_689_367L to """
+            2026-09-06 00:48:09 +00:00 / program: "Sample Program" / dayName: "Day A - Push" / week: 1 / dayInWeek: 2 / duration: 2700s / exercises: {
+              Bench Press / 5x5 135lb / warmup: 1x5 45lb, 1x5 95lb / target: 5x5 135lb 180s
+              Overhead Press / 3x8 75lb @9 / target: 3x8 75lb 120s
+            }
+        """.trimIndent(),
+        1_788_569_289_000L to """
+            2026-09-05 00:48:09 +00:00 / program: "Sample Program" / dayName: "Day C - Legs" / week: 1 / dayInWeek: 1 / duration: 5400s / exercises: {
+              Squat / 5x5 200lb / target: 5x5 200lb 210s
+              Leg Press / 3x12 250lb / target: 3x12 250lb 90s
+              Calf Raise / 4x15 80lb / target: 4x15 80lb 45s
+            }
+        """.trimIndent(),
+        1_788_482_889_000L to """
+            2026-09-04 00:48:09 +00:00 / program: "Sample Program" / dayName: "Conditioning" / week: 1 / dayInWeek: 5 / duration: 1200s / exercises: {
+              ~~ notation this build has never seen ~~
+            }
+        """.trimIndent(),
+    )
+
+    val history = historyText.map { (id, text) -> WorkoutTextParser.parse(id, text) }
 }

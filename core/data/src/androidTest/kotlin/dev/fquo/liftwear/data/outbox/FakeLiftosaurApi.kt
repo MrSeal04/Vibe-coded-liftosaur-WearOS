@@ -9,6 +9,7 @@ import dev.fquo.liftwear.api.dto.FinishWorkoutRequest
 import dev.fquo.liftwear.api.dto.FinishedWorkoutDto
 import dev.fquo.liftwear.api.dto.FinishedWorkoutEnvelope
 import dev.fquo.liftwear.api.dto.HistoryPageDto
+import dev.fquo.liftwear.api.dto.HistoryRecordDto
 import dev.fquo.liftwear.api.dto.LogSetRequest
 import dev.fquo.liftwear.api.dto.LogSetsRequest
 import dev.fquo.liftwear.api.dto.NextDayDto
@@ -99,8 +100,25 @@ class FakeLiftosaurApi : LiftosaurApi {
     override suspend fun getPrograms(): Envelope<ProgramListEnvelope> =
         Envelope(ProgramListEnvelope())
 
+    /** Newest first, keyed by id, paged the way the real API pages: cursor = last id seen. */
+    var historyRecords: List<HistoryRecordDto> = emptyList()
+    var historyRequests = mutableListOf<Pair<Int?, Long?>>()
+
     override suspend fun getHistory(limit: Int?, cursor: Long?, startDate: String?, endDate: String?):
-        Envelope<HistoryPageDto> = Envelope(HistoryPageDto())
+        Envelope<HistoryPageDto> {
+        historyRequests += limit to cursor
+        maybeFail()
+        val sorted = historyRecords.sortedByDescending { it.id }
+        val after = if (cursor == null) sorted else sorted.filter { it.id < cursor }
+        val page = after.take(limit ?: after.size)
+        return Envelope(
+            HistoryPageDto(
+                records = page,
+                hasMore = after.size > page.size,
+                nextCursor = page.lastOrNull()?.id,
+            )
+        )
+    }
 
     companion object {
         /** What a dead socket looks like coming out of OkHttp. */

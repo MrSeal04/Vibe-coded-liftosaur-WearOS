@@ -89,8 +89,24 @@ interface HistoryDao {
     @Query("SELECT * FROM history_cache WHERE id = :id")
     suspend fun get(id: Long): HistoryRecordEntity?
 
+    @Query("SELECT COUNT(*) FROM history_cache")
+    suspend fun count(): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun putAll(records: List<HistoryRecordEntity>)
+
+    /**
+     * Keeps the newest [keep] records and drops the rest.
+     *
+     * History is small text, but it is also unbounded: an account with years of training
+     * would otherwise grow this table forever on a watch, to hold pages nobody scrolls back
+     * to. Anything evicted is one paged request away.
+     */
+    @Query(
+        "DELETE FROM history_cache WHERE id NOT IN " +
+            "(SELECT id FROM history_cache ORDER BY id DESC LIMIT :keep)"
+    )
+    suspend fun trimTo(keep: Int)
 
     @Query("DELETE FROM history_cache")
     suspend fun clear()

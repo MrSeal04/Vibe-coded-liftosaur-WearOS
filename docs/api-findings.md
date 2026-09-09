@@ -38,8 +38,8 @@ unix-ms timestamp. The `text` is the Liftoscript Workouts format:
 ```
 2026-01-02 09:15:00 +00:00 / program: "Example Program" / dayName: "Day A" /
 week: 1 / dayInWeek: 1 / duration: 3332s / exercises: {
-  Lat Pulldown, Leverage Machine / 1x13 85lb, 1x12 100lb, 1x12 100lb @10 / warmup: 1x0 50lb, 1x0 70lb / target: 2x12 85lb 90s, 1x12 85lb @10+ 90s
-  Chin Up / 3x0 0lb, 1x0 0lb @10 / target: 3x4 0lb 150s, 1x4 0lb @10+ 150s
+  Incline Bench Press, Barbell / 1x10 95lb, 1x8 115lb, 1x8 115lb @10 / warmup: 1x10 45lb, 1x10 65lb / target: 2x8 95lb 90s, 1x8 95lb @10+ 90s
+  Chin Up / 3x6 0lb, 1x5 0lb @10 / target: 3x6 0lb 150s, 1x6 0lb @10+ 150s
 }
 ```
 

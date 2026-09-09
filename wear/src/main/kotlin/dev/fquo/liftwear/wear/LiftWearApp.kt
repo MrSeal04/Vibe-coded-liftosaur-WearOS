@@ -23,6 +23,9 @@ import dev.fquo.liftwear.wear.ambient.AmbientWorkoutSurface
 import dev.fquo.liftwear.wear.rest.WorkoutSession
 import dev.fquo.liftwear.wear.ui.common.LoadingScreen
 import dev.fquo.liftwear.wear.ui.common.MessageScreen
+import dev.fquo.liftwear.wear.ui.history.HistoryDetailScreen
+import dev.fquo.liftwear.wear.ui.history.HistoryScreen
+import dev.fquo.liftwear.wear.ui.history.HistoryViewModel
 import dev.fquo.liftwear.wear.ui.home.HomeScreen
 import dev.fquo.liftwear.wear.ui.home.HomeViewModel
 import dev.fquo.liftwear.wear.ui.settings.SettingsScreen
@@ -48,6 +51,9 @@ object Routes {
 
     const val SET_LIST = "setList/{entryIndex}"
     fun setList(entryIndex: Int) = "setList/$entryIndex"
+
+    const val HISTORY_DETAIL = "history/{recordId}"
+    fun historyDetail(recordId: Long) = "history/$recordId"
 }
 
 @Composable
@@ -180,9 +186,20 @@ private fun LiftWearNavHost(
         }
 
         composable(Routes.HISTORY) {
-            // Phase 8. The Liftoscript history parser already exists in :core:api; wiring
-            // it to a paged, offline-readable list is its own piece of work.
-            MessageScreen("History", "Coming in a later build.")
+            val vm = historyViewModel(navController, factory)
+            HistoryScreen(vm) { id -> navController.navigate(Routes.historyDetail(id)) }
+        }
+
+        composable(Routes.HISTORY_DETAIL) { backStackEntry ->
+            // Shares the list's ViewModel, so opening a record needs no second fetch and
+            // works with whatever the cache already holds.
+            val vm = historyViewModel(navController, factory)
+            val id = backStackEntry.arguments?.getString("recordId")?.toLongOrNull()
+            if (id == null) {
+                MessageScreen("Workout not found", "That link is not valid.")
+            } else {
+                HistoryDetailScreen(vm, id)
+            }
         }
     }
 }
@@ -208,6 +225,27 @@ private fun workoutViewModel(
     }
 }
 
+/**
+ * One [HistoryViewModel] for the list and the detail screen, scoped to the HISTORY entry.
+ *
+ * The same shape as [workoutViewModel] and for the same reason: opening a record must not
+ * refetch a page the list already has, least of all on a watch that may be offline.
+ */
+@Composable
+private fun historyViewModel(
+    navController: NavHostController,
+    factory: ViewModelProvider.Factory,
+): HistoryViewModel {
+    val parentEntry = remember(navController.currentBackStackEntry) {
+        runCatching { navController.getBackStackEntry(Routes.HISTORY) }.getOrNull()
+    }
+    return if (parentEntry != null) {
+        viewModel(viewModelStoreOwner = parentEntry, factory = factory)
+    } else {
+        viewModel(factory = factory)
+    }
+}
+
 @Composable
 private fun rememberContainerFactory(
     container: LiftWearContainer,
@@ -220,5 +258,6 @@ private fun rememberContainerFactory(
         initializer { HomeViewModel(container) }
         initializer { WorkoutViewModel(container, session) }
         initializer { SettingsViewModel(container, version) }
+        initializer { HistoryViewModel(container) }
     }
 }
