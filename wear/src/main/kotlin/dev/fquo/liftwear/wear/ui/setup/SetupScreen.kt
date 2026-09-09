@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.material3.Button
@@ -85,14 +86,17 @@ internal fun WaitingForPhone(phone: PhoneStatus, onEnterHere: () -> Unit) {
                 text = when (phone) {
                     PhoneStatus.NoCompanion ->
                         "Your phone is connected but does not have the LiftWear app."
-                    else ->
-                        "Send your Liftosaur key from the LiftWear app on your phone. " +
-                            "It arrives here automatically."
+                    // Four lines is all a 198dp screen has at font scale 1.24, and it used
+                    // to be one line short - the sentence was cut mid-word with nothing to
+                    // say it had been. Shortened to fit, and ellipsised so a future edit
+                    // fails visibly rather than silently.
+                    else -> "Send your key from the LiftWear app on your phone."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
             )
             Button(
                 onClick = onEnterHere,

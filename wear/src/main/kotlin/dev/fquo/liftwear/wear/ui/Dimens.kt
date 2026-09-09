@@ -61,10 +61,30 @@ val mediumNumeralRange: FontRange
         ScreenClass.Large -> FontRange(17.sp, 30.sp)
     }
 
+/** Where the focus card's content starts, as a fraction of screen height. */
+const val TOP_ARC_FRACTION = 0.12f
+
 /** Top inset that clears the curved TimeText on the top arc. */
 val topArcInset: Dp
     @Composable @ReadOnlyComposable
-    get() = (LocalConfiguration.current.screenHeightDp * 0.12f).dp
+    get() = (LocalConfiguration.current.screenHeightDp * TOP_ARC_FRACTION).dp
+
+/**
+ * Horizontal inset for content whose outer edge sits [fromTop] down a round screen.
+ *
+ * [circularPadding] is a flat percentage, which is correct in the middle of the screen and
+ * too small everywhere else. The top line of the focus card sits 12% down, where the circle
+ * is only about 65% as wide as the framebuffer, and a name padded by the flat 12% ran
+ * straight under the bezel arc - visible on the 396px emulator at font scale 1.24, and
+ * invisible in a preview that draws a square.
+ *
+ * [clearance] is added on top: the arc is drawn at the very edge, so touching the circle is
+ * not enough.
+ */
+@Composable
+@ReadOnlyComposable
+fun arcSafePadding(fromTop: Float, clearance: Float = 0.03f): Dp =
+    (screenWidthDp() * (RoundGeometry.insetFraction(fromTop) + clearance)).dp
 
 /** Stroke of the bezel progress arc. */
 val bezelStroke: Dp

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +35,9 @@ import dev.fquo.liftwear.wear.rest.RequestNotificationPermission
 import dev.fquo.liftwear.wear.rest.RestPhase
 import dev.fquo.liftwear.wear.rest.RestState
 import dev.fquo.liftwear.data.workout.WorkoutPlan
+import dev.fquo.liftwear.wear.ui.FontRange
+import dev.fquo.liftwear.wear.ui.TOP_ARC_FRACTION
+import dev.fquo.liftwear.wear.ui.arcSafePadding
 import dev.fquo.liftwear.wear.ui.bezelStroke
 import dev.fquo.liftwear.wear.ui.circularPadding
 import dev.fquo.liftwear.wear.ui.edgeButtonInset
@@ -43,7 +47,10 @@ import dev.fquo.liftwear.wear.ui.common.MessageScreen
 import dev.fquo.liftwear.wear.ui.hugeNumeralRange
 import dev.fquo.liftwear.wear.ui.mediumNumeralRange
 import dev.fquo.liftwear.wear.ui.topArcInset
+import dev.fquo.liftwear.wear.ui.common.AutoSizeLabel
 import dev.fquo.liftwear.wear.ui.common.AutoSizeNumeral
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalConfiguration
 
 /**
  * The gap left at the top of the bezel arc so it does not run underneath TimeText.
@@ -51,6 +58,19 @@ import dev.fquo.liftwear.wear.ui.common.AutoSizeNumeral
  */
 private const val ARC_START = 292f
 private const val ARC_END = 248f
+
+/**
+ * What the four lines that must always be there - name, weight, reps, set counter - need at
+ * font scale 1.0. Scaled by the actual font scale before it is used.
+ *
+ * A 198dp watch gives the card about 114dp, so it keeps the plate line and the sync note at
+ * normal text size and drops them at 1.24; a 227dp watch keeps them at both.
+ */
+private val MANDATORY_LINES_HEIGHT = 100.dp
+
+/** The exercise name shrinks between these before it is allowed to ellipsise. */
+private val labelRange: FontRange
+    @Composable get() = FontRange(11.sp, MaterialTheme.typography.labelMedium.fontSize)
 
 /**
  * The workout screen: one focus card per exercise, swiped horizontally.
@@ -151,6 +171,18 @@ internal fun ExerciseFocusPage(
             modifier = Modifier.fillMaxSize().padding(2.dp),
         )
 
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // Six lines of content do not fit a 198dp screen at the largest font scale, and the
+        // way that failed was the worst possible one: the rep count - the second number the
+        // lifter needs - was squeezed to a clipped sliver between the weight and the set
+        // counter, while the plate breakdown below it stayed perfectly legible. The
+        // supporting lines give way instead, in order of how little they are missed.
+        //
+        // Measured against the band the card actually gets, not the screen: the top arc
+        // inset and the EdgeButton take about 84dp of a 198dp watch between them.
+        val contentHeight = maxHeight - topArcInset - edgeButtonInset
+        val roomForDetail = contentHeight >= MANDATORY_LINES_HEIGHT * LocalConfiguration.current.fontScale
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -165,14 +197,17 @@ internal fun ExerciseFocusPage(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
         ) {
-            Text(
+            // The topmost line, and so the one the circle narrows hardest. Padded to the
+            // chord rather than by a flat percentage, and auto-sized so a long exercise name
+            // shrinks instead of disappearing under the bezel arc.
+            AutoSizeLabel(
                 text = if (resting) rest.label ?: entry.name else entry.name,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
+                range = labelRange,
                 maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = (arcSafePadding(TOP_ARC_FRACTION) - circularPadding())
+                        .coerceAtLeast(0.dp)),
             )
 
             if (resting) {
@@ -190,7 +225,7 @@ internal fun ExerciseFocusPage(
                     modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenSetList),
                 )
 
-                platesLabel(ref.set)?.let {
+                platesLabel(ref.set).takeIf { roomForDetail }?.let {
                     Text(
                         text = it,
                         style = MaterialTheme.typography.bodyExtraSmall,
@@ -214,7 +249,9 @@ internal fun ExerciseFocusPage(
                     entry.hasUpdateScript -> "may update after sync"
                     else -> null
                 }
-                if (note != null) {
+                // An attention state is never dropped: it is the one line here that asks
+                // the lifter to do something.
+                if (note != null && (roomForDetail || sync.needsAttention)) {
                     Text(
                         text = note,
                         style = MaterialTheme.typography.bodyExtraSmall,
@@ -228,6 +265,8 @@ internal fun ExerciseFocusPage(
                     )
                 }
             }
+        }
+
         }
 
         EdgeButton(
