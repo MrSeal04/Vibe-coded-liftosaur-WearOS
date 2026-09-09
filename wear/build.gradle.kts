@@ -56,6 +56,11 @@ dependencies {
     implementation(libs.work.runtime)
     implementation(libs.play.services.wearable)
 
+    // Debug only: the DesignGalleryActivity seeds the Room cache directly so the Tile and
+    // the complication can be seen in every state without an API key. :core:data keeps Room
+    // as an implementation detail, and it should stay that way for the release build.
+    debugImplementation(libs.room.runtime)
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
 

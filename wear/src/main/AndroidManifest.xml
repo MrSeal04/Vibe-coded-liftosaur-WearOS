@@ -60,6 +60,24 @@
                 android:value="@string/fgs_special_use_justification" />
         </service>
 
+        <!--
+          Reads the Room cache only - a Tile request is time-boxed and routinely arrives
+          with the app dead, so there is nothing to await.
+        -->
+        <service
+            android:name=".tile.LiftWearTileService"
+            android:exported="true"
+            android:label="@string/tile_label"
+            android:description="@string/tile_description"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data
+                android:name="androidx.wear.tiles.PREVIEW"
+                android:resource="@drawable/tile_preview" />
+        </service>
+
         <!-- Fires the rest buzz whether or not the app is open. -->
         <receiver
             android:name=".rest.RestAlarmReceiver"

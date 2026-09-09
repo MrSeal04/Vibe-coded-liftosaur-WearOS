@@ -5,12 +5,22 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * The last known live workout, as the raw envelope the API returned.
+ * A cached workout, as the raw envelope the API returned.
  *
  * Stored as JSON rather than normalised into tables on purpose: every write response
  * returns the whole workout, and an update script can rewrite later sets' weights, so the
  * server's payload is always authoritative in its entirety. Normalising it would only
  * create opportunities to merge it wrongly.
+ *
+ * Two rows, distinguished by [id]:
+ *
+ *  - [SINGLE_ROW] is the live workout - the one sets are logged against.
+ *  - [PREVIEW_ROW] is `/workout/next`, which is display-only because its setIds are
+ *    regenerated on every call. It is persisted rather than held in memory so the Tile can
+ *    say what today holds while the app is dead, which is the only state a Tile can rely on.
+ *
+ * Same shape, same table, so this cost no schema migration - and the outbox in the same
+ * database can hold the only copy of sets logged offline, which makes migrations expensive.
  */
 @Entity(tableName = "workout_cache")
 data class WorkoutCacheEntity(
@@ -22,7 +32,10 @@ data class WorkoutCacheEntity(
     /** True once a FINISH or DISCARD is queued, so the UI stops offering to log more sets. */
     val closed: Boolean = false,
 ) {
-    companion object { const val SINGLE_ROW = 0 }
+    companion object {
+        const val SINGLE_ROW = 0
+        const val PREVIEW_ROW = 1
+    }
 }
 
 /**

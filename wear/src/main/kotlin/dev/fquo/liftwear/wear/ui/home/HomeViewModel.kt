@@ -41,6 +41,13 @@ class HomeViewModel(private val container: LiftWearContainer) : ViewModel() {
         viewModelScope.launch {
             container.workouts.sync.collect { sync -> _state.value = _state.value.copy(sync = sync) }
         }
+        // The preview is persisted, so Home has something to show on a cold start in the
+        // gym car park before /workout/next has answered - or if it never does.
+        viewModelScope.launch {
+            container.workouts.preview.collect { preview ->
+                _state.value = _state.value.copy(preview = preview)
+            }
+        }
         viewModelScope.launch {
             // Only meaningful once a queued finish has actually gone through, which is why
             // it is a stored result rather than something the finish screen was handed.
@@ -65,18 +72,15 @@ class HomeViewModel(private val container: LiftWearContainer) : ViewModel() {
                     return@launch
                 }
                 is ApiResult.Ok -> if (current.value != null) {
-                    _state.value = _state.value.copy(loading = false, preview = null)
+                    _state.value = _state.value.copy(loading = false)
                     return@launch
                 }
             }
-            // No live workout: show what today holds. A preview failure is not fatal - Start
-            // still works, the server just picks the day.
-            val preview = container.workouts.refreshPreview()
-            _state.value = _state.value.copy(
-                loading = false,
-                preview = preview.valueOrNull(),
-                error = null,
-            )
+            // No live workout: refresh what today holds. A preview failure is not fatal -
+            // Start still works, the server just picks the day. The result lands in Room and
+            // reaches this state through the collector above.
+            container.workouts.refreshPreview()
+            _state.value = _state.value.copy(loading = false, error = null)
             container.settings.refresh()
         }
     }

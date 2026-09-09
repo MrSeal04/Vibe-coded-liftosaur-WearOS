@@ -10,5 +10,7 @@
       Reviewed only at Play Console submission, which is moot for a sideloaded app, but the
       manifest property is required for the specialUse foreground service type to be legal.
     -->
+    <string name="tile_label">Today\'s workout</string>
+    <string name="tile_description">The set you are on, or what today holds.</string>
     <string name="fgs_special_use_justification">Keeps the rest timer between sets running and its countdown visible on the watch face while the app is closed. LiftWear reads no sensors.</string>
 </resources>

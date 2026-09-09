@@ -23,6 +23,14 @@ import dev.fquo.liftwear.wear.ui.workout.ExerciseFocusPage
 import dev.fquo.liftwear.wear.rest.RestController
 import dev.fquo.liftwear.wear.rest.RestState
 import dev.fquo.liftwear.wear.rest.WorkoutSessionService
+import dev.fquo.liftwear.data.LiftWearContainer
+import dev.fquo.liftwear.data.db.WorkoutCacheEntity
+import kotlinx.coroutines.flow.first
+import dev.fquo.liftwear.wear.LiftWearApplication
+import dev.fquo.liftwear.wear.tile.requestTileUpdate
+import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope
+import kotlinx.serialization.json.Json
 import dev.fquo.liftwear.wear.ui.workout.rememberRestNow
 import dev.fquo.liftwear.wear.ui.workout.SetConfirmContent
 import dev.fquo.liftwear.wear.ui.workout.SetConfirmState
@@ -39,6 +47,53 @@ import dev.fquo.liftwear.wear.ui.workout.setCounterLabel
  */
 class DesignGalleryActivity : ComponentActivity() {
 
+    private fun seedCache(mode: String) {
+        val container = (application as LiftWearApplication).container
+        val dao = container.database.workoutCacheDao()
+        val json = Json { ignoreUnknownKeys = true; encodeDefaults = false }
+        val encoded = json.encodeToString(
+            dev.fquo.liftwear.api.dto.WorkoutDto.serializer(),
+            SampleWorkout.workout,
+        )
+        lifecycleScope.launch {
+            // The Tile shows nothing but "set up on your phone" while unpaired, which is the
+            // correct behaviour and also makes every other state invisible. A placeholder is
+            // written only when there is genuinely no key, so this can never displace a real
+            // one on a watch that is actually set up.
+            if (mode != "clear" && container.pairing.value != LiftWearContainer.PairingState.Paired) {
+                container.setApiKey(DEBUG_PLACEHOLDER_KEY)
+            }
+            when (mode) {
+                "live" -> dao.put(
+                    WorkoutCacheEntity(
+                        id = WorkoutCacheEntity.SINGLE_ROW,
+                        workoutJson = encoded,
+                        startTime = SampleWorkout.workout.startTime,
+                        fetchedAt = System.currentTimeMillis(),
+                    )
+                )
+                "ready" -> dao.put(
+                    WorkoutCacheEntity(
+                        id = WorkoutCacheEntity.PREVIEW_ROW,
+                        workoutJson = encoded,
+                        startTime = null,
+                        fetchedAt = System.currentTimeMillis(),
+                    )
+                )
+                else -> {
+                    dao.clearAll()
+                    if (container.credentials.apiKey.first() == DEBUG_PLACEHOLDER_KEY) container.unpair()
+                }
+            }
+            requestTileUpdate(this@DesignGalleryActivity)
+        }
+    }
+
+    private companion object {
+        /** Deliberately shaped like a key and deliberately not one; every call it makes 401s. */
+        const val DEBUG_PLACEHOLDER_KEY = "lftsk_debugplaceholdernotarealkey"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val screen = intent.getStringExtra("screen") ?: "focus"
@@ -49,6 +104,12 @@ class DesignGalleryActivity : ComponentActivity() {
             WorkoutSessionService.start(this)
             RestController.get(this).start(seconds, "Debug rest")
         }
+
+        // Debug-only: writes sample data straight into the Room cache so the Tile and the
+        // complication - which read Room and nothing else - can be seen in every state on a
+        // watch with no API key. Nothing here can reach the network: without a key the
+        // interceptor fails every request before it is sent.
+        intent.getStringExtra("seed")?.let { seedCache(it) }
         setContent {
             MaterialTheme {
                 // The ambient screens replace the whole surface, TimeText included, so

@@ -16,9 +16,6 @@ import dev.fquo.liftwear.data.db.OutboxEntity
 import dev.fquo.liftwear.data.db.WorkoutCacheEntity
 import dev.fquo.liftwear.data.outbox.OutboxScheduler
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
@@ -69,15 +66,18 @@ class WorkoutRepository(
      */
     val finishResult: Flow<FinishResultEntity?> = finishResultDao.observe()
 
-    private val _preview = MutableStateFlow<WorkoutDto?>(null)
-
     /**
      * Today's workout as a preview. Display only: `/workout/next` regenerates its setIds on
      * every call, so nothing here can be logged against.
+     *
+     * Kept in Room rather than in memory because the Tile has to answer "what is today?"
+     * from a process that may have just been started for that question alone.
      */
-    val preview: StateFlow<WorkoutDto?> = _preview.asStateFlow()
+    val preview: Flow<WorkoutDto?> = cacheDao.observePreview().map { it?.workoutJson?.let(::decode) }
 
     suspend fun current(): WorkoutDto? = cacheDao.get()?.takeIf { !it.closed }?.workoutJson?.let(::decode)
+
+    suspend fun currentPreview(): WorkoutDto? = cacheDao.getPreview()?.workoutJson?.let(::decode)
 
     /**
      * Reconciles with the server.
@@ -97,7 +97,7 @@ class WorkoutRepository(
 
     suspend fun refreshPreview(): ApiResult<WorkoutDto?> =
         apiCall { api.getNextWorkout().data.workout }
-            .also { if (it is ApiResult.Ok) _preview.value = it.value }
+            .also { if (it is ApiResult.Ok) storePreview(it.value) }
 
     /** Online only, by necessity - see the class comment. */
     suspend fun start(
@@ -198,6 +198,17 @@ class WorkoutRepository(
     suspend fun abandonQueued() {
         outboxDao.clear()
         cacheDao.clear()
+    }
+
+    private suspend fun storePreview(workout: WorkoutDto?) {
+        cacheDao.put(
+            WorkoutCacheEntity(
+                id = WorkoutCacheEntity.PREVIEW_ROW,
+                workoutJson = workout?.let(::encode),
+                startTime = null,
+                fetchedAt = now(),
+            )
+        )
     }
 
     private suspend fun store(workout: WorkoutDto?, closed: Boolean) {

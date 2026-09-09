@@ -15,11 +15,21 @@ interface WorkoutCacheDao {
     @Query("SELECT * FROM workout_cache WHERE id = ${WorkoutCacheEntity.SINGLE_ROW}")
     suspend fun get(): WorkoutCacheEntity?
 
+    @Query("SELECT * FROM workout_cache WHERE id = ${WorkoutCacheEntity.PREVIEW_ROW}")
+    fun observePreview(): Flow<WorkoutCacheEntity?>
+
+    @Query("SELECT * FROM workout_cache WHERE id = ${WorkoutCacheEntity.PREVIEW_ROW}")
+    suspend fun getPreview(): WorkoutCacheEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun put(entity: WorkoutCacheEntity)
 
-    @Query("DELETE FROM workout_cache")
+    /** The live row only. Throwing away the preview as well would blank the Tile. */
+    @Query("DELETE FROM workout_cache WHERE id = ${WorkoutCacheEntity.SINGLE_ROW}")
     suspend fun clear()
+
+    @Query("DELETE FROM workout_cache")
+    suspend fun clearAll()
 }
 
 @Dao

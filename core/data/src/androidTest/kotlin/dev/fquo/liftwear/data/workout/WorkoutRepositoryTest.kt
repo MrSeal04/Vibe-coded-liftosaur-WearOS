@@ -219,4 +219,50 @@ class WorkoutRepositoryTest {
             context.deleteDatabase("liftwear.db")
         }
     }
+
+    // --- the persisted preview (Phase 7) ---
+
+    /**
+     * The Tile is asked for a layout by a system process, on a schedule nobody controls,
+     * usually with this app dead. Before the preview was persisted it lived in a
+     * MutableStateFlow, so that request could only ever have found it empty.
+     */
+    @Test
+    fun the_preview_survives_the_process_that_fetched_it() = runTest {
+        api.nextWorkoutToReturn = workout.copy(dayName = "Day B")
+        repo.refreshPreview()
+
+        // A second repository on the same database is what a Tile request gets: a fresh
+        // object graph in a process that was started for this and nothing else.
+        val reborn = WorkoutRepository(context, api, db, json, now = { 9_000L }, scheduleDrain = {})
+        assertEquals("Day B", reborn.currentPreview()?.dayName)
+    }
+
+    @Test
+    fun the_live_workout_and_the_preview_do_not_overwrite_each_other() = runTest {
+        api.nextWorkoutToReturn = workout.copy(dayName = "Day B", startTime = 0L)
+        repo.refreshPreview()
+        repo.start()
+
+        assertEquals("Day A", repo.current()?.dayName)
+        assertEquals("Day B", repo.currentPreview()?.dayName)
+    }
+
+    /**
+     * Throwing away unsent work is destructive by design, but only to unsent work. Blanking
+     * the preview as well would leave the Tile saying "Open to load today's workout" until
+     * the user next opened the app - punishing them twice for one failed sync.
+     */
+    @Test
+    fun abandoning_queued_writes_leaves_the_preview_alone() = runTest {
+        api.nextWorkoutToReturn = workout.copy(dayName = "Day B", startTime = 0L)
+        repo.refreshPreview()
+        repo.start()
+        repo.logSet("e1", "s1", CompletedDto(reps = 5))
+
+        repo.abandonQueued()
+
+        assertNull(repo.current())
+        assertEquals("Day B", repo.currentPreview()?.dayName)
+    }
 }

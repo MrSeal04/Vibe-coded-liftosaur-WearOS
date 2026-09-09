@@ -88,8 +88,11 @@ class FakeLiftosaurApi : LiftosaurApi {
         return Envelope(WorkoutEnvelope(workoutToReturn))
     }
 
+    /** Defaults to [workoutToReturn] so existing tests are unaffected. */
+    var nextWorkoutToReturn: WorkoutDto? = null
+
     override suspend fun getNextWorkout(programId: String?, week: Int?, dayInWeek: Int?):
-        Envelope<WorkoutEnvelope> = Envelope(WorkoutEnvelope(workoutToReturn))
+        Envelope<WorkoutEnvelope> = Envelope(WorkoutEnvelope(nextWorkoutToReturn ?: workoutToReturn))
 
     override suspend fun getSettings(): Envelope<SettingsDto> = Envelope(SettingsDto())
 
