@@ -1,0 +1,123 @@
+# LiftWear
+
+A standalone **Wear OS** client for [Liftosaur](https://www.liftosaur.com), built for round
+Galaxy Watch displays. Start today's workout, see the current set as one large number, confirm
+it, get buzzed when rest is up — without pulling your phone out, and without a signal.
+
+> ### This repository was written by an AI
+>
+> **Every line of code, every test, every commit message and all of the documentation in this
+> repository were written by [Claude Code](https://claude.com/claude-code) (Claude Opus 5).**
+> Every commit carries the co-author trailer; `git log` is the receipt. A human set the goal,
+> made the product decisions, answered the design questions, and said "next phase".
+>
+> That is the whole point of the repo — the repo name is not a joke — so it is worth being
+> precise about what that did and did not mean:
+>
+> - **The API was reverse-checked, not assumed.** The published docs were wrong or silent in
+>   several places, so every endpoint was `curl`ed against the live account before a DTO was
+>   written. [`docs/api-findings.md`](docs/api-findings.md) is the result, and one of those
+>   findings (set IDs are regenerated per call) changed the architecture.
+> - **The bugs that mattered were found by running it, not by writing it.** A notification
+>   permission that was declared but never requested, silently dropping every notification. An
+>   `OngoingActivity.apply()` call that discarded its own extras with nothing in logcat. A rest
+>   countdown that read "3M" for ninety seconds on a real watch face. A rep count crushed to a
+>   clipped sliver at large font on a small screen. None of those fail at compile time; all of
+>   them are in the git log with the screenshot that caught them.
+> - **It was wrong out loud.** At least twice the model asserted something confidently, wrote a
+>   test for it, and the test disproved it. Those corrections are in the history too.
+>
+> If you are evaluating what agentic coding can do: read the commit messages and
+> [`CLAUDE.md`](CLAUDE.md) rather than the diffs. The reasoning is the interesting part.
+
+**This is an unofficial third-party client.** It is not affiliated with, endorsed by, or
+supported by Liftosaur, and it deliberately uses none of Liftosaur's branding, logo or package
+namespace. The API could change without notice; the client sends a versioned
+`X-Liftosaur-Client` header so breakage is attributable to a build.
+
+---
+
+## What it looks like
+
+| Workout | Set confirm | Rest | Ambient |
+|---|---|---|---|
+| ![Workout focus card](docs/screenshots/workout.png) | ![Set confirmation picker](docs/screenshots/set-confirm.png) | ![Rest timer](docs/screenshots/rest.png) | ![Ambient screen](docs/screenshots/ambient.png) |
+
+| History | Tile | Complication |
+|---|---|---|
+| ![History list](docs/screenshots/history.png) | ![Tile](docs/screenshots/tile.png) | ![Complication on a watch face](docs/screenshots/complication.png) |
+
+All screenshots use invented sample data.
+
+## What it does
+
+- **Workout execution** — today's plan, one focus card per exercise, swiped horizontally. The
+  weight is the largest thing on screen because it is what you check while re-racking.
+- **Set logging through a picker.** Never one-tap. Two interactions for a normal set, and it is
+  genuinely hard to mislog. AMRAP, ask-weight and RPE sets open with the required field focused
+  and empty, because the API rejects them otherwise.
+- **A rest timer that survives the app being closed.** Exact alarms rather than a coroutine
+  delay, a foreground service, and an Ongoing Activity chip the system animates on the watch
+  face. A soft tap ten seconds out, three firm pulses at zero — different *shapes*, so they are
+  distinguishable through a sleeve. No auto-advance, ever.
+- **Full offline logging.** Every tap writes to a local database and returns immediately; a
+  durable outbox sends when there is signal. Sets logged in a basement survive a force-stop.
+- **History browsing**, parsed from the Liftoscript text the API actually returns.
+- **All four Wear surfaces** — Tile, Ongoing Activity, ambient mode, and a watch face
+  complication.
+- **A phone companion** whose only job is to hand the watch your API key over the Data Layer,
+  then delete it.
+
+### Honest limitations
+
+- **A Liftosaur Premium subscription is required.** The API is inert without one, and the app
+  says so plainly rather than showing a generic error.
+- **You must be online to *start* a workout.** `/workout/next` regenerates its set IDs on every
+  call, so a prefetched plan refers to nothing — proven, not inferred. Everything after the
+  start is fully offline, which covers the real failure case: signal dying once you are inside
+  the gym.
+- **No heart rate, no sensors, no Health Services.** By design. The app reads nothing about
+  your body.
+- **Not published anywhere.** Sideload it.
+
+## Requirements
+
+- Wear OS 4 or newer (API 33+), round display.
+- A Liftosaur Premium API key (`lftsk_…`).
+- Android SDK with platform 37 and build-tools 37, JDK 21.
+
+## Build
+
+```sh
+./gradlew :wear:assembleDebug :mobile:assembleDebug
+adb install -r wear/build/outputs/apk/debug/wear-debug.apk
+```
+
+Install the phone APK on your phone to hand the key across, or enter the key on the watch
+directly — Setup keeps manual entry one tap away.
+
+Development commands, module layout and the design invariants are in
+[`CLAUDE.md`](CLAUDE.md).
+
+## State of things
+
+162 unit tests and 61 instrumented tests, green on both a 396×396 Wear OS 4 emulator and a
+454×454 Wear OS 6 emulator, at font scales 1.0 and 1.24.
+
+Three things have never run on real hardware and are the honest gaps:
+
+1. **The phone → watch key hand-off.** Everything either side of the transport is tested; the
+   transport needs a paired phone and a Google sign-in.
+2. **The full offline sequence** — real airplane mode, a real force-stop, real WorkManager
+   scheduling. The paths underneath are covered by instrumented tests and the API semantics
+   were confirmed against the live server.
+3. **Rest-timer accuracy with the screen off and the wrist down.**
+   `setExactAndAllowWhileIdle` is rate-limited to roughly once per nine minutes in Doze, and
+   rests fire every one to three. The emulator did not throttle. `setAlarmClock` is the
+   one-line fallback if it does.
+
+## A note on the training data
+
+The repo is public and the development account is a real one, so `fixtures/`, `backups/` and
+the test-record scratch file are gitignored. Every committed fixture, test sample and
+screenshot uses invented weights, exercises and program names.
