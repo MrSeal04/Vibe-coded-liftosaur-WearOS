@@ -31,8 +31,8 @@ android {
         applicationId = "dev.fquo.liftwear"
         minSdk = 33          // Wear OS 4
         targetSdk = 36       // Wear OS 6
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures {
