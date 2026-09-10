@@ -50,7 +50,7 @@ class LiftWearContainer(context: Context, clientVersion: String) {
     val database: LiftWearDatabase by lazy { LiftWearDatabase.create(appContext) }
 
     val workouts by lazy {
-        WorkoutRepository(appContext, api, database, LiftosaurApiFactory.json)
+        WorkoutRepository(appContext, api, database, LiftosaurApiFactory.json, sharingScope = scope)
     }
 
     /**

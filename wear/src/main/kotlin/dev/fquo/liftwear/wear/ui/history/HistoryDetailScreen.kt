@@ -103,7 +103,10 @@ internal fun HistoryDetailContent(record: WorkoutRecord) {
                 }
             }
 
-            items(record.exercises, key = { it.name + it.raw.hashCode() }) { line ->
+            // No content keys, here or below: one workout can legitimately hold two identical
+            // lines, and a lazy list throws on a repeated key. The record never reorders, so
+            // positions are enough.
+            items(record.exercises) { line ->
                 Card(
                     onClick = {},
                     modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
@@ -136,7 +139,7 @@ internal fun HistoryDetailContent(record: WorkoutRecord) {
                         Text("Not understood", textAlign = TextAlign.Center)
                     }
                 }
-                items(record.unparsed, key = { it.hashCode() }) { raw ->
+                items(record.unparsed) { raw ->
                     Card(
                         onClick = {},
                         modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),

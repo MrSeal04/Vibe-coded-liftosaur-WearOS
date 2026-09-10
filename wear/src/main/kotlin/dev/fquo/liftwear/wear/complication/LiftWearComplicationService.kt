@@ -20,6 +20,7 @@ import dev.fquo.liftwear.data.LiftWearContainer
 import dev.fquo.liftwear.wear.LiftWearApplication
 import dev.fquo.liftwear.wear.MainActivity
 import dev.fquo.liftwear.wear.rest.RestController
+import kotlinx.coroutines.flow.first
 import java.time.Instant
 
 /**
@@ -42,7 +43,9 @@ class LiftWearComplicationService : SuspendingComplicationDataSourceService() {
     override suspend fun onComplicationRequest(request: ComplicationRequest): ComplicationData? {
         val content = complicationContent(
             paired = container.pairing.value == LiftWearContainer.PairingState.Paired,
-            workout = container.workouts.current(),
+            // The shared flow, as the Tile does: its decode has already run for the update
+            // that asked for this.
+            workout = container.workouts.workout.first(),
             rest = RestController.get(this).state.value,
             now = System.currentTimeMillis(),
         )

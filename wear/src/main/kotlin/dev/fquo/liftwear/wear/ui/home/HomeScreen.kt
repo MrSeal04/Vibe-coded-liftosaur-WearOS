@@ -42,7 +42,10 @@ fun HomeScreen(
     }
 
     when {
-        state.loading -> LoadingScreen()
+        // The refresh runs behind whatever Room already holds. Blocking on it put a spinner in
+        // front of a workout the watch had cached all along, for as long as a gym's signal took
+        // to answer - up to the 15s connect timeout, on every open.
+        state.loading && state.active == null && state.preview == null -> LoadingScreen()
         state.starting -> LoadingScreen("Starting")
         state.error != null -> ErrorScreen(state.error!!, onRetry = viewModel::refresh)
         else -> HomeContent(

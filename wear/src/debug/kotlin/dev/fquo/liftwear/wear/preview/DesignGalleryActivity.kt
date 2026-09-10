@@ -196,7 +196,7 @@ private fun Gallery(screen: String) {
                 busy = false,
                 sync = SyncState(),
                 rest = rest,
-                now = tick,
+                now = { tick },
                 progressFraction = 0.35f,
                 allDone = false,
                 onPrimary = {},

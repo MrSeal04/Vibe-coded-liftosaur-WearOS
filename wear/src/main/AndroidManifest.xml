@@ -30,9 +30,16 @@
             android:name="com.google.android.wearable.standalone"
             android:value="true" />
 
+        <!--
+          singleTask: the Tile, the Ongoing Activity chip and the complication all open this
+          from the system UI, and without it each tap stacked another full copy of the app
+          onto the task - three were found on a Galaxy Watch 4, each with its own nav host,
+          ViewModels and network refresh, and swiping one away revealed the next.
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:taskAffinity=""
             android:theme="@android:style/Theme.DeviceDefault">
             <intent-filter>

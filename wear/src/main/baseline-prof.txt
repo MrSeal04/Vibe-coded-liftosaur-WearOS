@@ -1,0 +1,4 @@
+HSPLdev/fquo/liftwear/**->**(**)**
+Ldev/fquo/liftwear/**;
+HSPLkotlinx/serialization/**->**(**)**
+Lkotlinx/serialization/**;

@@ -64,15 +64,18 @@ internal fun formatRemaining(seconds: Int): String =
  * the only number that matters until it reaches zero.
  */
 @Composable
-fun ColumnScope.RestNumbers(rest: RestState, now: Long) {
-    val phase = rest.phase(now)
+fun ColumnScope.RestNumbers(rest: RestState, now: () -> Long) {
+    // The tick is read here and nowhere above, so a tick recomposes these two lines rather
+    // than the whole focus page.
+    val at = now()
+    val phase = rest.phase(at)
     Column(
         modifier = Modifier.weight(1f).fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         AutoSizeNumeral(
-            text = if (phase == RestPhase.Done) "GO" else formatRemaining(rest.remainingSeconds(now)),
+            text = if (phase == RestPhase.Done) "GO" else formatRemaining(rest.remainingSeconds(at)),
             range = hugeNumeralRange,
             modifier = Modifier.fillMaxWidth().weight(1f),
         )

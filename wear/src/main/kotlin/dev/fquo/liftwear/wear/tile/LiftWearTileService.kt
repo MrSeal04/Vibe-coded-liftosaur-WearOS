@@ -45,8 +45,10 @@ class LiftWearTileService : Material3TileService() {
     override suspend fun MaterialScope.tileResponse(requestParams: TileRequest): Tile {
         val snapshot = tileSnapshot(
             paired = container.pairing.value == LiftWearContainer.PairingState.Paired,
-            workout = container.workouts.current(),
-            preview = container.workouts.currentPreview(),
+            // The shared flows, not a fresh query: the update that triggered this request came
+            // from a collector on these same flows, so the decode it needs has already run.
+            workout = container.workouts.workout.first(),
+            preview = container.workouts.preview.first(),
             sync = container.workouts.sync.first(),
         )
         return tile(

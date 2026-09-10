@@ -52,7 +52,13 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.findByName("release")
-            isMinifyEnabled = false      // no shrinker rules written or tested yet
+            // R8 matters more on a watch than on a phone: unshrunk, this APK carried 36 MB of
+            // dex, and a sideloaded install runs it uncompiled until the watch next charges
+            // overnight. The libraries that reflect on our classes bring their own keep rules;
+            // an R8 build is verified by reading a cached workout and history on hardware.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
         }
     }
     compileOptions {

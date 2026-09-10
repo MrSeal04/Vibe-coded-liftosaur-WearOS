@@ -15,9 +15,16 @@ import dev.fquo.liftwear.data.db.LiftWearDatabase
 import dev.fquo.liftwear.data.db.OutboxEntity
 import dev.fquo.liftwear.data.db.WorkoutCacheEntity
 import dev.fquo.liftwear.data.outbox.OutboxScheduler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
 /** What the UI needs to know about unsent work, without knowing what an outbox is. */
@@ -44,6 +51,14 @@ class WorkoutRepository(
     private val json: Json,
     private val now: () -> Long = System::currentTimeMillis,
     private val scheduleDrain: (Context) -> Unit = OutboxScheduler::enqueue,
+    /**
+     * Where [workout] and [preview] are shared from, so the screens, the Tile and the
+     * Application's collector all read one decode per change instead of each running its own.
+     *
+     * Null leaves them cold, which is what a test wants: a cold read taken straight after a
+     * write queries Room and sees that write, where a shared replay may still be catching up.
+     */
+    private val sharingScope: CoroutineScope? = null,
 ) {
 
     private val cacheDao = db.workoutCacheDao()
@@ -51,9 +66,9 @@ class WorkoutRepository(
     private val finishResultDao = db.finishResultDao()
 
     /** The active workout, or null when none is running. Survives a force-stop. */
-    val workout: Flow<WorkoutDto?> = cacheDao.observe().map { entity ->
-        entity?.takeIf { !it.closed }?.workoutJson?.let(::decode)
-    }
+    val workout: Flow<WorkoutDto?> = cacheDao.observe()
+        .map { entity -> entity?.takeIf { !it.closed }?.workoutJson }
+        .decoded()
 
     val sync: Flow<SyncState> =
         combine(outboxDao.observePendingCount(), outboxDao.observeParkedCount()) { pending, parked ->
@@ -73,11 +88,15 @@ class WorkoutRepository(
      * Kept in Room rather than in memory because the Tile has to answer "what is today?"
      * from a process that may have just been started for that question alone.
      */
-    val preview: Flow<WorkoutDto?> = cacheDao.observePreview().map { it?.workoutJson?.let(::decode) }
+    val preview: Flow<WorkoutDto?> = cacheDao.observePreview().map { it?.workoutJson }.decoded()
 
-    suspend fun current(): WorkoutDto? = cacheDao.get()?.takeIf { !it.closed }?.workoutJson?.let(::decode)
+    // Off Main for the same reason as the flows: refreshCurrent() returns this from Home's
+    // ViewModel whenever writes are queued, which is every refresh of an offline workout.
+    suspend fun current(): WorkoutDto? = cacheDao.get()?.takeIf { !it.closed }?.workoutJson
+        ?.let { withContext(Dispatchers.Default) { decode(it) } }
 
-    suspend fun currentPreview(): WorkoutDto? = cacheDao.getPreview()?.workoutJson?.let(::decode)
+    suspend fun currentPreview(): WorkoutDto? = cacheDao.getPreview()?.workoutJson
+        ?.let { withContext(Dispatchers.Default) { decode(it) } }
 
     /**
      * Reconciles with the server.
@@ -123,15 +142,19 @@ class WorkoutRepository(
      * the watch either showing a set it will never send, or sending one it never showed.
      */
     suspend fun logSet(entryId: String, setId: String, completed: CompletedDto?): ApiResult<Unit> {
-        val cached = cacheDao.get()
-        val workout = cached?.workoutJson?.let(::decode)
-            ?: return ApiResult.Failure(LiftosaurError.NotFound("No workout in progress"))
-        val startTime = cached.startTime ?: workout.startTime
+        val cached = cacheDao.get() ?: return noWorkout()
 
-        val updated = WorkoutMutations.applyCompleted(workout, entryId, setId, completed)
+        // Decoding the whole workout, applying the set and re-encoding it is the expensive
+        // half of a tap, and the ViewModel calls this from the main thread.
+        val (startTime, updatedJson) = withContext(Dispatchers.Default) {
+            cached.workoutJson?.let(::decode)?.let { workout ->
+                (cached.startTime ?: workout.startTime) to
+                    encode(WorkoutMutations.applyCompleted(workout, entryId, setId, completed))
+            }
+        } ?: return noWorkout()
 
         db.withTransaction {
-            cacheDao.put(cached.copy(workoutJson = encode(updated), fetchedAt = now()))
+            cacheDao.put(cached.copy(workoutJson = updatedJson, fetchedAt = now()))
             outboxDao.insert(
                 OutboxEntity(
                     type = OutboxEntity.TYPE_SET,
@@ -221,6 +244,28 @@ class WorkoutRepository(
             )
         )
     }
+
+    /**
+     * Turns a cached row's JSON into a workout, as cheaply as a whole session's payload allows
+     * on a watch.
+     *
+     * - Off the main thread. A Room flow emits on whatever dispatcher collects it, and the UI
+     *   collects on Main, so this decode used to run there - several times per logged set.
+     * - Only when the JSON actually changed. Both rows live in one table, so Room re-runs
+     *   *both* queries when either is written: logging a set re-read an untouched preview.
+     * - Once per change however many collectors there are, when [sharingScope] is set.
+     */
+    private fun Flow<String?>.decoded(): Flow<WorkoutDto?> {
+        val decoded = distinctUntilChanged()
+            .map { raw -> raw?.let(::decode) }
+            .flowOn(Dispatchers.Default)
+        val scope = sharingScope ?: return decoded
+        // A zero replay expiry: once nobody is listening the cached value is dropped, so a
+        // later subscriber waits for a fresh query rather than being handed a stale workout.
+        return decoded.shareIn(scope, SharingStarted.WhileSubscribed(5_000, 0), replay = 1)
+    }
+
+    private fun noWorkout() = ApiResult.Failure(LiftosaurError.NotFound("No workout in progress"))
 
     private fun encode(workout: WorkoutDto) = json.encodeToString(WorkoutDto.serializer(), workout)
 

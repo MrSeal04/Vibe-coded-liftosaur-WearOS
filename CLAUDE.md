@@ -30,6 +30,15 @@ export PATH="$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools"
 ./gradlew :wear:connectedDebugAndroidTest :core:data:connectedDebugAndroidTest
 ```
 
+A release build goes onto a watch **with its baseline profile**, or it runs uncompiled until the
+watch next idles on its charger (14% janky frames on Home, measured, against 3–5%). R8 is on for
+`:wear` release, so check a cached workout and History still render after changing a DTO:
+
+```sh
+./gradlew :wear:assembleRelease
+cd wear/build/outputs/apk/release && adb install-multiple -r wear-release.apk baselineProfiles/0/wear-release.dm
+```
+
 `connectedAndroidTest` does **not** accept `--tests`. Filter with
 `-Pandroid.testInstrumentationRunnerArguments.package=dev.fquo.liftwear.wear.ambient`.
 Counts and failures land in `*/build/outputs/androidTest-results/connected/debug/*.xml`.
@@ -82,6 +91,12 @@ the network.** Every tap returns as soon as the write is durably queued.
 - **The workout is cached as raw JSON, not normalised.** Every write response returns the
   whole workout and update scripts rewrite later sets' weights, so the server's payload is
   authoritative in its entirety.
+- **Decoding that JSON is the expensive half of a tap.** A Room flow emits on the collector's
+  dispatcher - Main, for the UI - so `WorkoutRepository.workout` and `preview` skip unchanged
+  JSON, decode on `Dispatchers.Default`, and are shared from the container's scope: one decode
+  per change for every screen, the Application's collector, the Tile and the complication.
+  `logSet` does its decode and re-encode off Main too. Tests construct the repository without
+  a scope, so a read straight after a write stays a fresh query.
 - `workout_cache` holds **two rows**: `SINGLE_ROW` (the live workout) and `PREVIEW_ROW`
   (`/workout/next`, display-only). The preview is persisted because the Tile and complication
   are asked for content from a process that may have started for that question alone.

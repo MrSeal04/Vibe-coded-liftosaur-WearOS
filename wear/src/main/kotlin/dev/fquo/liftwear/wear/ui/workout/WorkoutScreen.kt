@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -101,8 +103,10 @@ fun WorkoutScreen(
         return
     }
 
-    val progress = WorkoutPlan.progress(current)
-    val allDone = WorkoutPlan.isFinished(current)
+    // Each of these walks every set in the session, so they are keyed on the workout: redone
+    // when a set lands, not on every recomposition.
+    val progress = remember(current) { WorkoutPlan.progress(current) }
+    val allDone = remember(current) { WorkoutPlan.isFinished(current) }
 
     // The foreground service is what keeps the rest timer and its watch-face chip alive once
     // the app is closed. Started from here because this screen is by definition foreground,
@@ -110,16 +114,21 @@ fun WorkoutScreen(
     RequestNotificationPermission()
     LaunchedEffect(Unit) { viewModel.ensureSessionRunning() }
 
-    val now by rememberRestNow(rest)
+    // Handed down as a lambda and read only by what actually shows the time. Read here, it
+    // recomposed this whole screen once a second for the length of every rest - the pager
+    // page, its BoxWithConstraints and every auto-sized line, mid-swipe included.
+    val nowState = rememberRestNow(rest)
+    val now = remember(nowState) { { nowState.value } }
 
-    // Open on the exercise the lifter is actually on, not on the first one.
-    val startPage = WorkoutPlan.firstIncomplete(current)?.entryIndex ?: 0
+    // Open on the exercise the lifter is actually on, not on the first one. Only the first
+    // value is ever used: the pager state ignores it once it exists.
+    val startPage = remember { WorkoutPlan.firstIncomplete(current)?.entryIndex ?: 0 }
     val pagerState = rememberPagerState(initialPage = startPage) { current.entries.size }
 
     HorizontalPagerScaffold(pagerState = pagerState) {
         HorizontalPager(state = pagerState) { page ->
             val entry = current.entries[page]
-            val ref = WorkoutPlan.firstIncompleteIn(current, page)
+            val ref = remember(current, page) { WorkoutPlan.firstIncompleteIn(current, page) }
             ExerciseFocusPage(
                 entry = entry,
                 ref = ref,
@@ -151,19 +160,24 @@ internal fun ExerciseFocusPage(
     busy: Boolean,
     sync: SyncState,
     rest: RestState = RestState(),
-    now: Long = 0L,
+    /** The current time, read only where time is shown so a tick does not recompose the page. */
+    now: () -> Long = { 0L },
     progressFraction: Float,
     allDone: Boolean,
     onPrimary: () -> Unit,
     onOpenSetList: () -> Unit,
 ) {
     ScreenScaffold {
+        // Changes once, when the rest runs out - so that is the only tick this page hears.
+        val restOver by remember(rest, now) {
+            derivedStateOf { rest.phase(now()) == RestPhase.Done }
+        }
         // The arc is drawn first so the numbers sit on top of it, never the other way round.
         val resting = rest.isActive
         CircularProgressIndicator(
             // The bezel is the one place a round watch has that a rectangular one does not,
             // so it carries whichever of the two is currently urgent.
-            progress = { if (resting) rest.fraction(now) else progressFraction },
+            progress = { if (resting) rest.fraction(now()) else progressFraction },
             startAngle = ARC_START,
             endAngle = ARC_END,
             strokeWidth = bezelStroke,
@@ -277,7 +291,7 @@ internal fun ExerciseFocusPage(
         ) {
             Text(
                 text = when {
-                    rest.phase(now) == RestPhase.Done -> "Next set"
+                    restOver -> "Next set"
                     rest.isActive -> "Skip rest"
                     allDone -> "Finish"
                     ref == null || ref.isCompleted -> "Sets"
