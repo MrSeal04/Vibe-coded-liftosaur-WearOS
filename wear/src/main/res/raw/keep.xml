@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Resources nothing in the app references, but something outside it reads by name - so release
+  resource shrinking cannot see that they are used, and must be told to keep them.
+
+  android_wear_capabilities: Google Play services reads it to advertise liftwear_watch_app to the
+  phone. Shrunk away in 0.1.1, the phone companion said "LiftWear is not on the watch" with the
+  app installed and running.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@array/android_wear_capabilities" />
