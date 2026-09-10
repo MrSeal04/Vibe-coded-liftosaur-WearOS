@@ -1,6 +1,6 @@
 ---
 name: wear-emulator-verify
-description: Verify LiftWear on the Wear OS emulators - AVD boot rules, installing before am start, the DesignGalleryActivity screenshot harness, font-scale sweeps and contact sheets, and driving ambient, Tiles and complications from adb. Use when a change needs to be seen on a watch, when capturing round-display screenshots, when running connectedAndroidTest, on "Activity class {...} does not exist", on a screencap that returns the watch face or a splash screen, on "Unrecognized operation" or "Complication slot is not enabled" from the debug surface, when a Tile or complication goes blank after a test run, when both emulators die at once, when checking whether the app owns the ambient screen, or when testing on a real watch over Wi-Fi - a serial containing "(2)" that ANDROID_SERIAL reports as "device not found", a link that drops between commands or mid-install, "connection refused" on an address mDNS still lists, a screencap returning the charging AOD or a locked watch face, or forcing Doze to measure whether setExactAndAllowWhileIdle alarms get deferred.
+description: Verify LiftWear on the Wear OS emulators - AVD boot rules, installing before am start, the DesignGalleryActivity screenshot harness, font-scale sweeps and contact sheets, and driving ambient, Tiles and complications from adb. Use when a change needs to be seen on a watch, when capturing round-display screenshots, when running connectedAndroidTest, on "Activity class {...} does not exist", on a screencap that returns the watch face or a splash screen, on "Unrecognized operation" or "Complication slot is not enabled" from the debug surface, when a Tile or complication goes blank after a test run, when both emulators die at once, when checking whether the app owns the ambient screen, or when testing on a real watch over Wi-Fi - a serial containing "(2)" that ANDROID_SERIAL reports as "device not found", a link that drops between commands or mid-install, "connection refused" on an address mDNS still lists, a screencap returning the charging AOD or a locked watch face, or forcing Doze to measure whether setExactAndAllowWhileIdle alarms get deferred, or measuring jank and cold start on a real watch - dexopt "status=verify" after a sideload, "Failure while dumping the app" from gfxinfo, or meminfo counting several Activities from stacked launches.
 ---
 
 # Wear OS emulator verification
@@ -147,8 +147,48 @@ reports success and screencaps return the watch face. `input swipe 198 340 198 6
 swipe-only lock (`deviceLocked=0` afterwards proves it), but a PIN needs a human — do not type
 one over adb.
 
-**Cold start is ~10s** on real hardware, not the ~5s the emulator needs. `mCurrentFocus=null`
-right after `am start` usually means you looked too early, not that it failed.
+**Cold start is ~10s** on real hardware, not the ~5s the emulator needs (verified 2026-09-10:
+not for a **release** build, which reached first frame in 0.9–1.9s by `am start -W` TotalTime
+and showed Home content by +3s — debug builds not re-measured).
+`mCurrentFocus=null` right after `am start` usually means you looked too early, not that it failed.
+
+### Measuring performance
+
+**A sideloaded install runs with no AOT code at all.** After `adb install`,
+`dumpsys package dexopt | grep -A3 "\[dev.fquo.liftwear\]"` reads `status=verify` even though
+the APK carries `assets/dexopt/baseline.prof` and profileinstaller; ART only compiles it in
+background dexopt (idle + charging). **Install the `.dm` beside it** and it compiles at install
+instead — `status=speed-profile`, `reason=install-dm`, verified 2026-09-10 on the Wear OS 6
+emulator and the Galaxy Watch 4. The names must match, so run it from the output directory:
+
+```sh
+cd wear/build/outputs/apk/release && adb -s "$W" install-multiple -r wear-release.apk baselineProfiles/0/wear-release.dm
+```
+
+To measure what an APK-only sideload feels like, or to compare one APK in both states, force it:
+
+```sh
+adb -s "$W" shell "nohup cmd package compile -m speed-profile -f dev.fquo.liftwear > /data/local/tmp/c.log 2>&1 &"
+adb -s "$W" shell am start -W -n dev.fquo.liftwear/.wear.MainActivity   # TotalTime = first frame
+adb -s "$W" shell dumpsys gfxinfo dev.fquo.liftwear reset               # drive input swipe, then dump
+```
+
+The compile took ~50s on a Galaxy Watch 4; it runs under on-device `nohup` so a Wi-Fi drop
+cannot cut it off — poll the dexopt status until it flips. Measured 2026-09-10, same APK, 16
+swipes over Home: `verify` 14.0% janky, p90 65ms, p99 101ms, 44 missed vsync; `speed-profile`
+3.2%, 31ms, 40ms, 0.
+
+- `dumpsys gfxinfo` answering `Failure while dumping the app` means the process is cached and
+  frozen — bring the app to the foreground before dumping.
+- `Activities: 3` in `dumpsys meminfo` with one screen visible: `dumpsys activity activities`
+  lists each `MainActivity` record with `launchedFromPackage`; `com.samsung.android.wearable.sysui`
+  entries are Tile / Ongoing-chip launches stacking new instances onto the task. To reproduce
+  without tapping anything, launch with `am start -n <pkg>/.wear.MainActivity`, press HOME, then
+  `am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n …`: the
+  pre-`singleTask` build went to 2 records, the fixed one stays at 1 (verified 2026-09-10).
+- **A helper that counts on a dropped transport prints 0**, which reads exactly like "not
+  stacked". Check `adb -s "$W" get-state` says `device` before trusting any count.
+- `am force-stop` cancels the app's alarms — confirm no rest is pending before timing cold starts.
 
 ### Doze, without taking the watch off the charger
 
@@ -223,6 +263,15 @@ adb shell am broadcast -a com.google.android.wearable.app.DEBUG_SURFACE \
 ```sh
 ./gradlew :wear:connectedDebugAndroidTest :core:data:connectedDebugAndroidTest
 ```
+
+**`:wear`'s run uninstalls the app from every device it runs on — with the real watch attached,
+that wipes its live workout, outbox and key.** Pin it: `ANDROID_SERIAL=emulator-5554` is honoured
+here even though it is not for the `(2)` Wi-Fi serial; the log then reads
+`Running tests on devices: LiftWear_Large(AVD)` with the watch still connected (verified 2026-09-10
+on `:core:data`'s run, whose test APK is its own package; `pm list packages` on the watch afterwards
+showed nothing new).
+A watch that looked gone can reattach mid-session over mDNS, so pin every run rather than
+relying on `adb devices` having been empty earlier.
 
 `--tests` is not accepted; filter with
 `-Pandroid.testInstrumentationRunnerArguments.package=dev.fquo.liftwear.wear.ambient`.
