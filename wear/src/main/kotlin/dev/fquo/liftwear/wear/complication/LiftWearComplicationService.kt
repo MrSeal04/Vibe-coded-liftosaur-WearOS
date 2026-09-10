@@ -19,6 +19,7 @@ import androidx.wear.watchface.complications.datasource.SuspendingComplicationDa
 import dev.fquo.liftwear.data.LiftWearContainer
 import dev.fquo.liftwear.wear.LiftWearApplication
 import dev.fquo.liftwear.wear.MainActivity
+import dev.fquo.liftwear.wear.debuglog.eventLog
 import dev.fquo.liftwear.wear.rest.RestController
 import kotlinx.coroutines.flow.first
 import java.time.Instant
@@ -49,6 +50,7 @@ class LiftWearComplicationService : SuspendingComplicationDataSourceService() {
             rest = RestController.get(this).state.value,
             now = System.currentTimeMillis(),
         )
+        eventLog().log("Complication", "requested ${request.complicationType}: $content")
         return render(request.complicationType, content, openApp(this))
     }
 

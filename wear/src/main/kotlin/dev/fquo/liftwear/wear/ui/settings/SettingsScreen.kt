@@ -68,6 +68,36 @@ fun SettingsScreen(viewModel: SettingsViewModel, onUnpaired: () -> Unit) {
             // useful when a write is refused and the account has several devices.
             item { Row("Device", state.deviceIdShort, spec) }
             item { Row("Version", state.version, spec) }
+            // Kept on the watch whatever happens; sending copies it to the phone, where it can
+            // be shared. Nothing here clears it - a bug report needs what led up to the bug.
+            item { Row("Debug log", state.debugLogSize, spec) }
+            item {
+                val sending = state.logSend == LogSendStatus.Sending
+                Button(
+                    onClick = viewModel::sendLogToPhone,
+                    enabled = !sending,
+                    colors = ButtonDefaults.filledTonalButtonColors(),
+                    modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
+                    transformation = SurfaceTransformation(spec),
+                ) {
+                    Text(
+                        if (sending) "Sending…" else "Send log to phone",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+            state.logSendMessage?.let { message ->
+                item {
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
+                    )
+                }
+            }
             item {
                 Button(
                     onClick = { confirmUnpair = true },

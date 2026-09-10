@@ -42,5 +42,33 @@
                     android:path="/liftwear/credentials/ack" />
             </intent-filter>
         </service>
+
+        <!--
+          Receives the watch's debug log over a Data Layer channel, keeps the latest copy and
+          answers with the number of bytes saved. No android:permission, for the same reason as
+          AckListenerService above.
+        -->
+        <service
+            android:name=".WatchLogReceiverService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.CHANNEL_EVENT" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:path="/liftwear/debug-log" />
+            </intent-filter>
+        </service>
+
+        <!-- Lets the share sheet hand the received log to another app, and nothing else. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.watchlog"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/watch_log_paths" />
+        </provider>
     </application>
 </manifest>

@@ -2,6 +2,7 @@ package dev.fquo.liftwear.api
 
 import dev.fquo.liftwear.api.internal.AuthInterceptor
 import dev.fquo.liftwear.api.internal.ErrorInterceptor
+import dev.fquo.liftwear.api.internal.NetworkLogInterceptor
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -28,6 +29,7 @@ object LiftosaurApiFactory {
      * @param apiKeyProvider returns the stored key, or null when unpaired.
      * @param deviceIdProvider a stable per-install id for X-Liftosaur-Device-Id.
      * @param clientName value for X-Liftosaur-Client, e.g. "liftwear/0.1.0".
+     * @param log receives one line per request; never the headers or a success body.
      */
     fun create(
         apiKeyProvider: () -> String?,
@@ -35,6 +37,7 @@ object LiftosaurApiFactory {
         clientName: String,
         baseUrl: String = BASE_URL,
         extraInterceptors: List<okhttp3.Interceptor> = emptyList(),
+        log: EventLog = EventLog.None,
     ): LiftosaurApi {
         val client = OkHttpClient.Builder()
             // A watch on a flaky gym connection should fail fast so the outbox can
@@ -45,6 +48,7 @@ object LiftosaurApiFactory {
             .retryOnConnectionFailure(true)
             .addInterceptor(AuthInterceptor(apiKeyProvider, deviceIdProvider, clientName))
             .addInterceptor(ErrorInterceptor(json))
+            .addInterceptor(NetworkLogInterceptor(log))
             .apply { extraInterceptors.forEach { addInterceptor(it) } }
             .build()
 

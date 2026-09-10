@@ -67,7 +67,10 @@ class SetupViewModel(
             val accepted = runCatching {
                 intake.sweep { key -> container.setApiKey(key) }
             }.getOrDefault(false)
-            if (accepted) _state.value = _state.value.copy(done = true)
+            if (accepted) {
+                container.log.log("Pairing", "key found waiting in the Data Layer and accepted")
+                _state.value = _state.value.copy(done = true)
+            }
         }
     }
 

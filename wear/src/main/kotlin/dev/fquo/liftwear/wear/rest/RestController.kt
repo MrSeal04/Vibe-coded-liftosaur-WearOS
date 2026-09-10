@@ -1,6 +1,8 @@
 package dev.fquo.liftwear.wear.rest
 
 import android.content.Context
+import dev.fquo.liftwear.wear.debuglog.clockTime
+import dev.fquo.liftwear.wear.debuglog.eventLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,6 +22,7 @@ class RestController private constructor(context: Context) {
 
     private val appContext = context.applicationContext
     private val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val log = appContext.eventLog()
 
     private val _state = MutableStateFlow(restore())
     val state: StateFlow<RestState> = _state.asStateFlow()
@@ -28,14 +31,22 @@ class RestController private constructor(context: Context) {
         val state = RestTimer.start(durationSeconds, now, label)
         persist(state)
         _state.value = state
+        log.log(
+            AREA,
+            "start ${durationSeconds}s, ends ${state.endsAt?.let(::clockTime)}" + (label?.let { " · $it" } ?: ""),
+        )
         RestAlarms.schedule(appContext, state)
     }
 
     /** The lifter starting the next set early, or cancelling the rest outright. */
     fun clear() {
+        val previous = _state.value
         persist(RestState())
         _state.value = RestState()
         RestAlarms.cancel(appContext)
+        if (previous.isActive) {
+            log.log(AREA, "cleared with ${previous.remainingSeconds(System.currentTimeMillis())}s left")
+        }
     }
 
     /**
@@ -44,6 +55,7 @@ class RestController private constructor(context: Context) {
      */
     fun markDone() {
         _state.value = _state.value.copy()
+        log.log(AREA, "done")
     }
 
     private fun persist(state: RestState) {
@@ -57,6 +69,9 @@ class RestController private constructor(context: Context) {
     private fun restore(): RestState {
         val endsAt = prefs.getLong(KEY_ENDS_AT, 0L)
         if (endsAt <= 0L) return RestState()
+        // A process that died mid-rest coming back: worth a line, because it is the case the
+        // mirror to SharedPreferences exists for.
+        log.log(AREA, "restored a rest ending ${clockTime(endsAt)} after a process restart")
         return RestState(
             endsAt = endsAt,
             durationSeconds = prefs.getInt(KEY_DURATION, 0),
@@ -65,6 +80,7 @@ class RestController private constructor(context: Context) {
     }
 
     companion object {
+        private const val AREA = "Rest"
         private const val PREFS = "liftwear_rest"
         private const val KEY_ENDS_AT = "ends_at"
         private const val KEY_DURATION = "duration"

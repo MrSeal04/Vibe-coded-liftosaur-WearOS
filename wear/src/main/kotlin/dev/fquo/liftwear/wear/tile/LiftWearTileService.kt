@@ -22,6 +22,7 @@ import androidx.wear.tiles.timelineEntry
 import dev.fquo.liftwear.data.LiftWearContainer
 import dev.fquo.liftwear.wear.LiftWearApplication
 import dev.fquo.liftwear.wear.MainActivity
+import dev.fquo.liftwear.wear.debuglog.eventLog
 import kotlinx.coroutines.flow.first
 import kotlin.time.Duration.Companion.minutes
 
@@ -51,6 +52,7 @@ class LiftWearTileService : Material3TileService() {
             preview = container.workouts.preview.first(),
             sync = container.workouts.sync.first(),
         )
+        this@LiftWearTileService.eventLog().log("Tile", "requested: ${snapshot.state}, \"${snapshot.headline}\"")
         return tile(
             timeline = timeline(timelineEntry(layout(snapshot))),
             freshness = 0.minutes,

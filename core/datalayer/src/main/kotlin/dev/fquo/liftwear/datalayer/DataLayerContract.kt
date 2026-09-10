@@ -19,6 +19,12 @@ object DataLayerContract {
     /** Capability advertised by the watch app so the phone can tell it is installed. */
     const val CAPABILITY_WATCH_APP = "liftwear_watch_app"
 
+    /** ChannelClient path the watch streams its debug log down to the phone. */
+    const val PATH_DEBUG_LOG = "/liftwear/debug-log"
+
+    /** MessageClient path the phone answers on, carrying how many bytes it saved. */
+    const val PATH_DEBUG_LOG_ACK = "/liftwear/debug-log/ack"
+
     const val KEY_API_KEY = "api_key"
     const val KEY_ISSUED_AT = "issued_at"
 

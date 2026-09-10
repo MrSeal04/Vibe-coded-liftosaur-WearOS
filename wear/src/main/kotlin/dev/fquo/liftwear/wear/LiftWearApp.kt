@@ -1,6 +1,7 @@
 package dev.fquo.liftwear.wear
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -9,6 +10,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.wear.compose.navigation.currentBackStackEntryAsState
 import androidx.wear.compose.material3.AppScaffold
@@ -23,6 +25,7 @@ import dev.fquo.liftwear.datalayer.WearableCredentialTransport
 import dev.fquo.liftwear.datalayer.WearableNodes
 import dev.fquo.liftwear.wear.ambient.AmbientAware
 import dev.fquo.liftwear.wear.ambient.AmbientWorkoutSurface
+import dev.fquo.liftwear.wear.debuglog.DebugLogSender
 import dev.fquo.liftwear.wear.rest.WorkoutSession
 import dev.fquo.liftwear.wear.ui.common.LoadingScreen
 import dev.fquo.liftwear.wear.ui.common.MessageScreen
@@ -105,6 +108,20 @@ private fun LiftWearNavHost(
 ) {
     val navController = rememberSwipeDismissableNavController()
     val factory = rememberContainerFactory(container, nodes, session, version)
+
+    // Which screen the lifter was on is half of most bug reports, so every change is logged.
+    DisposableEffect(navController) {
+        val listener = NavController.OnDestinationChangedListener { _, destination, arguments ->
+            val args = arguments?.let { bundle ->
+                bundle.keySet()
+                    .filterNot { it.startsWith("android-support-nav") }
+                    .joinToString { key -> "$key=${bundle.getString(key)}" }
+            }
+            container.log.log("Nav", destination.route.orEmpty() + if (args.isNullOrEmpty()) "" else " ($args)")
+        }
+        navController.addOnDestinationChangedListener(listener)
+        onDispose { navController.removeOnDestinationChangedListener(listener) }
+    }
 
     // Pairing state changes from two directions: a key revoked in Settings must land back
     // on setup rather than leave screens up that only produce 401s, and a key delivered by
@@ -263,7 +280,10 @@ private fun rememberContainerFactory(
             initializer { SetupViewModel(container, nodes, intake) }
             initializer { HomeViewModel(container) }
             initializer { WorkoutViewModel(container, session) }
-            initializer { SettingsViewModel(container, version) }
+            initializer {
+                val app = context as LiftWearApplication
+                SettingsViewModel(container, version, app.debugLog, DebugLogSender(app, app.debugLog))
+            }
             initializer { HistoryViewModel(container) }
         }
     }

@@ -1,6 +1,7 @@
 package dev.fquo.liftwear.data
 
 import android.content.Context
+import dev.fquo.liftwear.api.EventLog
 import dev.fquo.liftwear.api.LiftosaurApi
 import dev.fquo.liftwear.api.LiftosaurApiFactory
 import dev.fquo.liftwear.data.credentials.CredentialStore
@@ -22,12 +23,17 @@ import kotlinx.coroutines.launch
  * Hand-rolled service locator. A dependency-injection framework would earn its keep on a
  * phone app; here there are four objects and one of them is a Retrofit interface.
  */
-class LiftWearContainer(context: Context, clientVersion: String) {
+class LiftWearContainer(
+    context: Context,
+    clientVersion: String,
+    /** The watch passes its debug log; the phone keeps none. */
+    val log: EventLog = EventLog.None,
+) {
 
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    val credentials = CredentialStore(appContext)
+    val credentials = CredentialStore(appContext, log)
 
     /**
      * OkHttp's interceptor needs the key synchronously, so the decrypted value is mirrored
@@ -45,12 +51,20 @@ class LiftWearContainer(context: Context, clientVersion: String) {
         apiKeyProvider = { apiKeyCache },
         deviceIdProvider = { DeviceId.get(appContext) },
         clientName = "liftwear/$clientVersion",
+        log = log,
     )
 
     val database: LiftWearDatabase by lazy { LiftWearDatabase.create(appContext) }
 
     val workouts by lazy {
-        WorkoutRepository(appContext, api, database, LiftosaurApiFactory.json, sharingScope = scope)
+        WorkoutRepository(
+            appContext,
+            api,
+            database,
+            LiftosaurApiFactory.json,
+            sharingScope = scope,
+            log = log,
+        )
     }
 
     /**
@@ -64,6 +78,7 @@ class LiftWearContainer(context: Context, clientVersion: String) {
             cacheDao = database.workoutCacheDao(),
             finishResultDao = database.finishResultDao(),
             json = LiftosaurApiFactory.json,
+            log = log,
         )
     }
 
@@ -77,7 +92,10 @@ class LiftWearContainer(context: Context, clientVersion: String) {
         scope.launch {
             credentials.apiKey.collect { key ->
                 apiKeyCache = key
-                _pairing.value = if (key == null) PairingState.Unpaired else PairingState.Paired
+                val state = if (key == null) PairingState.Unpaired else PairingState.Paired
+                // Transitions only. The key itself never goes near the log.
+                if (state != _pairing.value) log.log("Pairing", state.name.lowercase())
+                _pairing.value = state
             }
         }
     }

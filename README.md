@@ -126,6 +126,18 @@ watch**. The watch stores it and acknowledges, and the phone deletes the key fro
 connection. If you would rather not install the phone app, Setup on the watch keeps manual
 entry one tap away.
 
+## Reporting a bug
+
+LiftWear keeps a debug log on the watch: the last couple of megabytes of what it did, including
+every sync attempt, every crash, and how late each rest alarm fired. To get it:
+
+- **From the watch:** Settings → **Send log to phone**, then **Share** in LiftWear on the phone.
+- **Over adb:**
+  `adb shell content read --uri content://dev.fquo.liftwear.debuglog/log > liftwear-debug.log`
+
+The log holds your training history - exercise names, weights and reps - so read it before
+attaching it anywhere public. It does not hold your API key.
+
 ## Build
 
 ```sh

@@ -1,6 +1,7 @@
 package dev.fquo.liftwear.data.outbox
 
 import dev.fquo.liftwear.api.ApiResult
+import dev.fquo.liftwear.api.EventLog
 import dev.fquo.liftwear.api.LiftosaurApi
 import dev.fquo.liftwear.api.LiftosaurError
 import dev.fquo.liftwear.api.apiCall
@@ -10,6 +11,7 @@ import dev.fquo.liftwear.api.dto.FinishWorkoutRequest
 import dev.fquo.liftwear.api.dto.LogSetRequest
 import dev.fquo.liftwear.api.dto.LogSetsRequest
 import dev.fquo.liftwear.api.dto.WorkoutDto
+import dev.fquo.liftwear.api.warn
 import dev.fquo.liftwear.data.db.FinishResultDao
 import dev.fquo.liftwear.data.db.FinishResultEntity
 import dev.fquo.liftwear.data.db.OutboxDao
@@ -45,6 +47,8 @@ class OutboxDrainer(
     private val finishResultDao: FinishResultDao,
     private val json: Json,
     private val now: () -> Long = System::currentTimeMillis,
+    /** Every batch and its outcome. A drain that finds nothing writes nothing. */
+    private val log: EventLog = EventLog.None,
 ) {
 
     suspend fun drain(): DrainResult {
@@ -52,12 +56,18 @@ class OutboxDrainer(
         while (true) {
             val pending = outboxDao.pending()
             val batch = OutboxBatcher.next(pending) ?: return finish(sent)
+            log.log(
+                AREA,
+                "sending ${batch.type.lowercase()} x${batch.rows.size} ids=${batch.ids} " +
+                    "workout=${batch.workoutStartTime} (${pending.size} pending)",
+            )
 
             when (val outcome = send(batch)) {
                 is SendOutcome.Ok -> {
                     outboxDao.delete(batch.ids)
                     outcome.workout.let { storeWorkout(it, batch.workoutStartTime, batch.type) }
                     sent += batch.rows.size
+                    log.log(AREA, "sent ids=${batch.ids}")
                 }
 
                 is SendOutcome.Failed -> {
@@ -65,6 +75,7 @@ class OutboxDrainer(
                     return when {
                         error.isRetryable -> {
                             outboxDao.recordFailure(batch.ids, error.toString())
+                            log.warn(AREA, "will retry ids=${batch.ids}: $error")
                             DrainResult.Retry(error)
                         }
 
@@ -73,11 +84,17 @@ class OutboxDrainer(
                         error is LiftosaurError.Conflict.WorkoutAlreadyActive &&
                             resyncMatchesQueue(batch.workoutStartTime) -> {
                             outboxDao.recordFailure(batch.ids, "resynced")
+                            log.warn(
+                                AREA,
+                                "server already runs workout ${batch.workoutStartTime}; resynced onto it, " +
+                                    "will retry ids=${batch.ids}",
+                            )
                             DrainResult.Retry(error)
                         }
 
                         else -> {
                             outboxDao.park(batch.ids, error.toString())
+                            log.log(AREA, "PARKED ids=${batch.ids} until the user acts: $error", EventLog.Level.Error)
                             DrainResult.Parked(error)
                         }
                     }
@@ -86,7 +103,13 @@ class OutboxDrainer(
         }
     }
 
-    private fun finish(sent: Int) = if (sent == 0) DrainResult.Idle else DrainResult.Drained(sent)
+    private fun finish(sent: Int): DrainResult =
+        if (sent == 0) {
+            DrainResult.Idle
+        } else {
+            log.log(AREA, "drained $sent rows")
+            DrainResult.Drained(sent)
+        }
 
     private sealed interface SendOutcome {
         data class Ok(val workout: WorkoutDto?) : SendOutcome
@@ -132,6 +155,7 @@ class OutboxDrainer(
                         finishedAt = now(),
                     )
                 )
+                log.log(AREA, "finish accepted; next day: ${result.value.nextDay?.dayName}")
                 SendOutcome.Ok(null)
             }
             is ApiResult.Failure -> SendOutcome.Failed(result.error)
@@ -179,7 +203,10 @@ class OutboxDrainer(
     private suspend fun resyncMatchesQueue(queuedStartTime: Long): Boolean {
         val current = apiCall { api.getCurrentWorkout().data.workout }
         val server = (current as? ApiResult.Ok)?.value ?: return false
-        if (server.startTime != queuedStartTime) return false
+        if (server.startTime != queuedStartTime) {
+            log.warn(AREA, "server runs workout ${server.startTime}, but the queue belongs to $queuedStartTime")
+            return false
+        }
         cacheDao.put(
             WorkoutCacheEntity(
                 workoutJson = json.encodeToString(WorkoutDto.serializer(), server),
@@ -188,5 +215,9 @@ class OutboxDrainer(
             )
         )
         return true
+    }
+
+    private companion object {
+        const val AREA = "Outbox"
     }
 }

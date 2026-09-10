@@ -285,6 +285,9 @@ private fun Gallery(screen: String) {
         "setup" -> SetupPrompt(malformed = false, onEnterKey = {})
         "setup-phone" -> WaitingForPhone(phone = PhoneStatus.Ready, onEnterHere = {})
         "setup-nocompanion" -> WaitingForPhone(phone = PhoneStatus.NoCompanion, onEnterHere = {})
+        // Deliberate, to prove the debug log catches a crash: the stack trace should be in the
+        // log, and the next start should record the process ending in one.
+        "crash" -> throw IllegalStateException("Deliberate crash from the design gallery")
         else -> MessageScreen("Unknown screen", screen)
     }
 }

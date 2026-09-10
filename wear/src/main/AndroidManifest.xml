@@ -133,5 +133,17 @@
                     android:path="/liftwear/credentials" />
             </intent-filter>
         </service>
+
+        <!--
+          The debug log, for adb and nothing else. Exported so the shell can reach a
+          non-debuggable build, but both permissions are DUMP, which the adb shell holds and no
+          installable app can. The command is in DebugLogProvider.
+        -->
+        <provider
+            android:name=".debuglog.DebugLogProvider"
+            android:authorities="${applicationId}.debuglog"
+            android:exported="true"
+            android:readPermission="android.permission.DUMP"
+            android:writePermission="android.permission.DUMP" />
     </application>
 </manifest>

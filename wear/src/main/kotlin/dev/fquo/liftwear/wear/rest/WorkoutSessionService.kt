@@ -12,8 +12,10 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.wear.ongoing.OngoingActivity
 import androidx.wear.ongoing.Status
+import dev.fquo.liftwear.api.EventLog
 import dev.fquo.liftwear.wear.MainActivity
 import dev.fquo.liftwear.wear.R
+import dev.fquo.liftwear.wear.debuglog.eventLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -54,11 +56,20 @@ class WorkoutSessionService : Service() {
             builder.build(),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
         )
+        // Without the permission the service still runs, but every update below returns early,
+        // so the watch-face chip never appears - silently, unless it is written down here.
+        val notifications = hasNotificationPermission(this)
+        eventLog().log(
+            AREA,
+            "service started" + if (notifications) "" else " · notifications are off, so there is no watch-face chip",
+            if (notifications) EventLog.Level.Info else EventLog.Level.Warn,
+        )
         watch()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            eventLog().log(AREA, "service stopping")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -145,12 +156,14 @@ class WorkoutSessionService : Service() {
         )
 
     override fun onDestroy() {
+        eventLog().log(AREA, "service stopped")
         watcher?.cancel()
         scope.cancel()
         super.onDestroy()
     }
 
     companion object {
+        private const val AREA = "Session"
         private const val CHANNEL_ID = "liftwear_workout"
         private const val NOTIFICATION_ID = 1001
         private const val ACTION_STOP = "dev.fquo.liftwear.STOP_SESSION"

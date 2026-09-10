@@ -3,6 +3,7 @@ package dev.fquo.liftwear.data.workout
 import android.content.Context
 import androidx.room.withTransaction
 import dev.fquo.liftwear.api.ApiResult
+import dev.fquo.liftwear.api.EventLog
 import dev.fquo.liftwear.api.LiftosaurApi
 import dev.fquo.liftwear.api.LiftosaurError
 import dev.fquo.liftwear.api.apiCall
@@ -10,6 +11,7 @@ import dev.fquo.liftwear.api.dto.CompletedDto
 import dev.fquo.liftwear.api.dto.FinishWorkoutRequest
 import dev.fquo.liftwear.api.dto.StartWorkoutRequest
 import dev.fquo.liftwear.api.dto.WorkoutDto
+import dev.fquo.liftwear.api.warn
 import dev.fquo.liftwear.data.db.FinishResultEntity
 import dev.fquo.liftwear.data.db.LiftWearDatabase
 import dev.fquo.liftwear.data.db.OutboxEntity
@@ -59,6 +61,8 @@ class WorkoutRepository(
      * write queries Room and sees that write, where a shared replay may still be catching up.
      */
     private val sharingScope: CoroutineScope? = null,
+    /** Every start, reconcile and queued write, so a sync bug can be traced after the fact. */
+    private val log: EventLog = EventLog.None,
 ) {
 
     private val cacheDao = db.workoutCacheDao()
@@ -105,18 +109,33 @@ class WorkoutRepository(
      * have not been sent yet, which is the one thing this class exists to prevent.
      */
     suspend fun refreshCurrent(): ApiResult<WorkoutDto?> {
-        if (outboxDao.pending().isNotEmpty()) {
+        val queued = outboxDao.pending().size
+        if (queued > 0) {
+            log.log(AREA, "refresh deferred: $queued writes still queued")
             scheduleDrain(context)
             return ApiResult.Ok(current())
         }
         return apiCall { api.getCurrentWorkout().data.workout }.also { result ->
-            if (result is ApiResult.Ok) store(result.value, closed = result.value == null)
+            when (result) {
+                is ApiResult.Ok -> {
+                    store(result.value, closed = result.value == null)
+                    log.log(AREA, "refreshed from server: ${describe(result.value)}")
+                }
+                is ApiResult.Failure -> log.warn(AREA, "refresh failed: ${result.error}")
+            }
         }
     }
 
     suspend fun refreshPreview(): ApiResult<WorkoutDto?> =
-        apiCall { api.getNextWorkout().data.workout }
-            .also { if (it is ApiResult.Ok) storePreview(it.value) }
+        apiCall { api.getNextWorkout().data.workout }.also { result ->
+            when (result) {
+                is ApiResult.Ok -> {
+                    storePreview(result.value)
+                    log.log(AREA, "preview from server: ${describe(result.value)}")
+                }
+                is ApiResult.Failure -> log.warn(AREA, "preview refresh failed: ${result.error}")
+            }
+        }
 
     /** Online only, by necessity - see the class comment. */
     suspend fun start(
@@ -127,11 +146,15 @@ class WorkoutRepository(
     ): ApiResult<WorkoutDto?> =
         apiCall {
             api.startWorkout(StartWorkoutRequest(programId, week, dayInWeek, startTime)).data.workout
-        }.also {
-            if (it is ApiResult.Ok) {
-                // A new session invalidates the previous one's progression result.
-                finishResultDao.clear()
-                store(it.value, closed = false)
+        }.also { result ->
+            when (result) {
+                is ApiResult.Ok -> {
+                    // A new session invalidates the previous one's progression result.
+                    finishResultDao.clear()
+                    store(result.value, closed = false)
+                    log.log(AREA, "started (program $programId, week $week, day $dayInWeek): ${describe(result.value)}")
+                }
+                is ApiResult.Failure -> log.warn(AREA, "start failed: ${result.error}")
             }
         }
 
@@ -142,7 +165,7 @@ class WorkoutRepository(
      * the watch either showing a set it will never send, or sending one it never showed.
      */
     suspend fun logSet(entryId: String, setId: String, completed: CompletedDto?): ApiResult<Unit> {
-        val cached = cacheDao.get() ?: return noWorkout()
+        val cached = cacheDao.get() ?: return noWorkout("set $entryId/$setId")
 
         // Decoding the whole workout, applying the set and re-encoding it is the expensive
         // half of a tap, and the ViewModel calls this from the main thread.
@@ -151,7 +174,7 @@ class WorkoutRepository(
                 (cached.startTime ?: workout.startTime) to
                     encode(WorkoutMutations.applyCompleted(workout, entryId, setId, completed))
             }
-        } ?: return noWorkout()
+        } ?: return noWorkout("set $entryId/$setId")
 
         db.withTransaction {
             cacheDao.put(cached.copy(workoutJson = updatedJson, fetchedAt = now()))
@@ -166,6 +189,7 @@ class WorkoutRepository(
                 )
             )
         }
+        log.log(AREA, "queued set $entryId/$setId: ${completed ?: "un-complete"}")
         scheduleDrain(context)
         return ApiResult.Ok(Unit)
     }
@@ -191,7 +215,7 @@ class WorkoutRepository(
     private suspend fun close(type: String, payload: (Long) -> String?): ApiResult<Unit> {
         val cached = cacheDao.get()
         val startTime = cached?.startTime ?: cached?.workoutJson?.let(::decode)?.startTime
-            ?: return ApiResult.Failure(LiftosaurError.NotFound("No workout in progress"))
+            ?: return noWorkout(type.lowercase())
 
         db.withTransaction {
             outboxDao.insert(
@@ -204,6 +228,7 @@ class WorkoutRepository(
             )
             cacheDao.put(cached!!.copy(closed = true, fetchedAt = now()))
         }
+        log.log(AREA, "queued ${type.lowercase()} for workout $startTime")
         scheduleDrain(context)
         return ApiResult.Ok(Unit)
     }
@@ -211,6 +236,7 @@ class WorkoutRepository(
     /** The user answering a parked conflict with "send it anyway". */
     suspend fun retryParked() {
         outboxDao.unparkAll()
+        log.log(AREA, "parked writes returned to the queue for another attempt")
         scheduleDrain(context)
     }
 
@@ -219,8 +245,10 @@ class WorkoutRepository(
      * [retryParked] and never automatic: this is the only path that destroys logged sets.
      */
     suspend fun abandonQueued() {
+        val lost = outboxDao.observeAllOnce()
         outboxDao.clear()
         cacheDao.clear()
+        log.warn(AREA, "abandoned ${lost.size} queued writes ${lost.groupingBy { it.type }.eachCount()} and the cached workout")
     }
 
     private suspend fun storePreview(workout: WorkoutDto?) {
@@ -265,11 +293,28 @@ class WorkoutRepository(
         return decoded.shareIn(scope, SharingStarted.WhileSubscribed(5_000, 0), replay = 1)
     }
 
-    private fun noWorkout() = ApiResult.Failure(LiftosaurError.NotFound("No workout in progress"))
+    private fun noWorkout(what: String): ApiResult.Failure {
+        log.warn(AREA, "$what not queued: no workout in progress")
+        return ApiResult.Failure(LiftosaurError.NotFound("No workout in progress"))
+    }
+
+    /** One line a bug report can use: which day, which session, how far through. */
+    private fun describe(workout: WorkoutDto?): String {
+        if (workout == null) return "none"
+        val progress = WorkoutPlan.progress(workout)
+        return "${workout.dayName} · startTime ${workout.startTime} · ${workout.entries.size} exercises · " +
+            "${progress.completed}/${progress.total} sets done"
+    }
 
     private fun encode(workout: WorkoutDto) = json.encodeToString(WorkoutDto.serializer(), workout)
 
     /** A cache we cannot parse is a cache we do not have; it must not crash the workout screen. */
     private fun decode(raw: String): WorkoutDto? =
-        runCatching { json.decodeFromString(WorkoutDto.serializer(), raw) }.getOrNull()
+        runCatching { json.decodeFromString(WorkoutDto.serializer(), raw) }
+            .onFailure { log.warn(AREA, "a cached workout could not be decoded", it) }
+            .getOrNull()
+
+    private companion object {
+        const val AREA = "Workout"
+    }
 }

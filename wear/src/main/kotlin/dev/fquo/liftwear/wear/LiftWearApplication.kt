@@ -1,10 +1,14 @@
 package dev.fquo.liftwear.wear
 
 import android.app.Application
+import dev.fquo.liftwear.api.EventLog
 import dev.fquo.liftwear.data.LiftWearContainer
+import dev.fquo.liftwear.data.debuglog.DebugLog
+import dev.fquo.liftwear.data.debuglog.captureUncaughtExceptions
 import dev.fquo.liftwear.data.outbox.OutboxDrainer
 import dev.fquo.liftwear.data.outbox.OutboxHost
 import dev.fquo.liftwear.datalayer.WearableNodes
+import dev.fquo.liftwear.wear.debuglog.ProcessStartLog
 import dev.fquo.liftwear.wear.rest.WorkoutSession
 import dev.fquo.liftwear.wear.complication.requestComplicationUpdate
 import dev.fquo.liftwear.wear.tile.requestTileUpdate
@@ -16,8 +20,15 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.io.File
 
 class LiftWearApplication : Application(), OutboxHost {
+
+    /**
+     * The debug log. Lazy because it needs [getFilesDir], which does not exist until the base
+     * context is attached - after property initialisers run, before [onCreate].
+     */
+    val debugLog: DebugLog by lazy { DebugLog(File(filesDir, "debuglog")) }
 
     lateinit var container: LiftWearContainer
         private set
@@ -30,13 +41,20 @@ class LiftWearApplication : Application(), OutboxHost {
 
     override val outboxDrainer: OutboxDrainer get() = container.outboxDrainer
 
+    override val eventLog: EventLog get() = debugLog
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
         super.onCreate()
+        // First, so a crash while building everything below is still written down.
+        debugLog.captureUncaughtExceptions()
+        // Two binder calls and a preferences read: off the main thread, where cold start is.
+        scope.launch { ProcessStartLog.record(this@LiftWearApplication, debugLog) }
+
         // The client header is versioned so that, if the unofficial API contract shifts,
         // breakage is attributable to a build rather than to "some watch app".
-        container = LiftWearContainer(this, BuildConfig.VERSION_NAME)
+        container = LiftWearContainer(this, BuildConfig.VERSION_NAME, debugLog)
         nodes = WearableNodes(this)
         session = WorkoutSession(this)
         keepSurfacesFresh()

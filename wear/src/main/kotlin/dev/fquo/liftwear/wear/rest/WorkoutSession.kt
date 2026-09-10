@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import dev.fquo.liftwear.api.dto.SetDto
 import dev.fquo.liftwear.api.dto.TimersDto
+import dev.fquo.liftwear.api.warn
+import dev.fquo.liftwear.wear.debuglog.eventLog
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -27,7 +29,10 @@ class WorkoutSession(context: Context) {
      */
     fun ensureRunning() {
         runCatching { WorkoutSessionService.start(appContext) }
-            .onFailure { Log.w(TAG, "Could not start the session service", it) }
+            .onFailure {
+                Log.w(TAG, "Could not start the session service", it)
+                appContext.eventLog().warn("Session", "could not start the session service", it)
+            }
     }
 
     fun end() {

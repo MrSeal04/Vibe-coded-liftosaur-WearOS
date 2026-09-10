@@ -9,6 +9,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import dev.fquo.liftwear.api.EventLog
 import java.util.concurrent.TimeUnit
 
 /**
@@ -19,6 +20,9 @@ import java.util.concurrent.TimeUnit
  */
 interface OutboxHost {
     val outboxDrainer: OutboxDrainer
+
+    /** Where a worker run is written down. A host that keeps no debug log leaves this alone. */
+    val eventLog: EventLog get() = EventLog.None
 }
 
 class OutboxWorker(
@@ -28,7 +32,16 @@ class OutboxWorker(
 
     override suspend fun doWork(): Result {
         val host = applicationContext as? OutboxHost ?: return Result.failure()
-        return when (host.outboxDrainer.drain()) {
+        val drained = host.outboxDrainer.drain()
+
+        // An idle first attempt is the common case - the extra workers a burst of sets appends
+        // find the queue already empty - and says nothing. A retry, or real work, does: the
+        // attempt number is how WorkManager's backoff shows up in a bug report.
+        if (drained != DrainResult.Idle || runAttemptCount > 0) {
+            host.eventLog.log("Outbox", "worker attempt ${runAttemptCount + 1}: $drained")
+        }
+
+        return when (drained) {
             DrainResult.Idle, is DrainResult.Drained -> Result.success()
 
             // Transient: let WorkManager's backoff decide when to come back.

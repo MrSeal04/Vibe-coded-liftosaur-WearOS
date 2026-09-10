@@ -31,8 +31,12 @@ export PATH="$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools"
 ```
 
 A release build goes onto a watch **with its baseline profile**, or it runs uncompiled until the
-watch next idles on its charger (14% janky frames on Home, measured, against 3–5%). R8 is on for
-`:wear` release, so check a cached workout and History still render after changing a DTO:
+watch next idles on its charger (14% janky frames on Home, measured, against 3–5%). R8 and resource
+shrinking are on for `:wear` release, so check a cached workout and History still render after
+changing a DTO - and that `aapt2 dump resources wear-release.apk` still lists
+`array/android_wear_capabilities`. Play services reads that by name, the shrinker cannot see the
+use, and 0.1.1 shipped without it, so the phone reported the watch app missing;
+`wear/src/main/res/raw/keep.xml` now keeps it.
 
 ```sh
 ./gradlew :wear:assembleRelease
@@ -179,6 +183,32 @@ usually with the app dead. Neither may write: the Tile's button says "Open", nev
 because a carousel is somewhere a sleeve brushes past. `LiftWearApplication` collects the Room
 flows and pushes updates to both, so a set logged on the wrist and a batch landed by the
 outbox worker (same process) are handled by one collector.
+
+### Debug log
+
+logcat on a Galaxy Watch 4 is a 1 MiB ring shared with the system, about fifteen minutes deep, and
+the app itself logged almost nothing. `DebugLog` (:core:data) keeps its own: four 512 KB files in
+`filesDir/debuglog/`, oldest dropped. It records one line per request, every outbox batch and its
+outcome (a parked batch at `E`), each rest alarm with how many ms late it fired, the session
+service, pairing transitions, screen changes, Tile and complication requests - and at every process
+start, the build and how the previous process ended (`ApplicationExitInfo`: crash, ANR with its
+trace, memory kill). An uncaught exception is written synchronously before the process dies.
+
+```sh
+adb shell content read --uri content://dev.fquo.liftwear.debuglog/log > liftwear-debug.log
+```
+
+That works on the non-debuggable release: `DebugLogProvider`'s permissions are `DUMP`, which the
+adb shell holds and no installable app can. Settings → **Send log to phone** streams it over a Data
+Layer channel to the companion, which confirms the byte count and offers **Share**.
+
+- **Never log the API key, a request header or a response body.** `NetworkLogInterceptor` writes
+  method, path, status and time, plus the first 300 characters of an *error* body only;
+  `NetworkLogTest` asserts the key and headers never appear. The log does carry training data.
+- Writes go through one background thread. `logNow` is for the crash handler and nothing else.
+- `:wear` release runs R8 with `-dontobfuscate` and real line numbers (`wear/proguard-rules.pro`),
+  so a stack trace in the log reads as it is: nobody keeps the mapping file of whichever build a
+  watch happens to have installed.
 
 ## Live-account safety
 

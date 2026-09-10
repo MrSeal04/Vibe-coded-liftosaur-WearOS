@@ -1,6 +1,7 @@
 package dev.fquo.liftwear.mobile
 
 import android.os.Bundle
+import android.text.format.DateUtils
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +27,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -194,6 +196,38 @@ private fun PairingScreen(viewModel: PairingViewModel) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+
+            WatchLogCard()
+        }
+    }
+}
+
+/**
+ * The watch's debug log, once one has been sent from the watch's Settings. Shown only then:
+ * most people never send one, and a card saying there is no log would only raise questions.
+ */
+@Composable
+private fun WatchLogCard() {
+    val context = LocalContext.current
+    var log by remember { mutableStateOf(WatchLog.latest(context)) }
+    LaunchedEffect(Unit) {
+        WatchLog.received.collect { log = WatchLog.latest(context) }
+    }
+    val current = log ?: return
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Watch debug log", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "Received ${DateUtils.getRelativeTimeSpanString(current.receivedAt)} · " +
+                    "${(current.bytes + 1023) / 1024} KB. It includes your training history, so check it " +
+                    "before posting it anywhere public.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedButton(onClick = { context.startActivity(WatchLog.shareIntent(context, current)) }) {
+                Text("Share")
             }
         }
     }

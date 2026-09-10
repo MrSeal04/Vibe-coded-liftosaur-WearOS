@@ -9,6 +9,8 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.integration.android.AndroidKeystore
+import dev.fquo.liftwear.api.EventLog
+import dev.fquo.liftwear.api.warn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -25,7 +27,10 @@ private val Context.credentialsDataStore: DataStore<Preferences> by
  * only the ciphertext reaches DataStore. Tink's `AndroidKeysetManager` is deprecated in
  * 1.18, so this uses [AndroidKeystore] directly - there is no keyset file to manage.
  */
-class CredentialStore(context: Context) {
+class CredentialStore(
+    context: Context,
+    private val log: EventLog = EventLog.None,
+) {
 
     private val appContext = context.applicationContext
 
@@ -60,6 +65,9 @@ class CredentialStore(context: Context) {
      */
     private fun decryptOrNull(sealed: String): String? = runCatching {
         String(aead.decrypt(Base64.decode(sealed, Base64.NO_WRAP), ASSOCIATED_DATA), Charsets.UTF_8)
+    }.onFailure {
+        // Silently unpairing is the right behaviour and a baffling bug report; this says why.
+        log.warn("Pairing", "the stored key could not be decrypted, so the watch is treated as unpaired", it)
     }.getOrNull()
 
     companion object {
