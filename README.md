@@ -115,9 +115,11 @@ adb install -r liftwear-phone-<version>.apk     # to the phone
 Sideloading to a watch needs ADB debugging and Wireless debugging (two separate toggles) under
 Developer options, then `adb pair <ip>:<port>` and `adb connect <ip>:<port>`.
 
-Then open LiftWear on the phone, paste your key, and tap **Send to watch**. The watch stores it
-and acknowledges, and the phone deletes the key from the connection. If you would rather not
-install the phone app, Setup on the watch keeps manual entry one tap away.
+Open LiftWear on the watch once first — a freshly installed app cannot receive anything until
+it has been launched. Then open LiftWear on the phone, paste your key, and tap **Send to
+watch**. The watch stores it and acknowledges, and the phone deletes the key from the
+connection. If you would rather not install the phone app, Setup on the watch keeps manual
+entry one tap away.
 
 ## Build
 
@@ -154,9 +156,10 @@ and every gap that only hardware could close was closed:
   not hold on this watch, so every delivery was refused with nothing in the app's logs — the
   key could not arrive while the app was closed, and the phone never processed the
   acknowledgement that tells it to delete the key from the connection.
-- **Ambient mode owns the screen**, confirming off-emulator the finding that drove Phase 6.
-  The burn-in orbit walk still has not run anywhere: this watch sets
-  `sys.burn_in_protection.enabled=1` in system properties but reports
+- **Ambient mode owns the screen.** Wear OS 6 keeps the app on screen in ambient whether or
+  not it asks to be, and the watch confirmed what the emulator had shown. The burn-in orbit
+  walk still has not run anywhere: this watch sets `sys.burn_in_protection.enabled=1` in
+  system properties but reports
   `isBurnInProtectionRequired=false` to the app, and only the latter is what the code reads.
 - **The key hand-off works end to end**, including the deletion of the credential from the
   Data Layer once the watch acknowledges it — a security property that until now had only
@@ -165,7 +168,7 @@ and every gap that only hardware could close was closed:
   exactly once when connectivity returned, with the queued finish draining *after* its sets
   rather than overtaking them.
 
-Every test run against a disposable program that is deleted afterwards; the account is
+Every test ran against a disposable program that is deleted afterwards; the account is
 verified back to its exact prior state.
 
 ## A note on the training data
@@ -173,3 +176,7 @@ verified back to its exact prior state.
 The repo is public and the development account is a real one, so `fixtures/`, `backups/` and
 the test-record scratch file are gitignored. Every committed fixture, test sample and
 screenshot uses invented weights, exercises and program names.
+
+## License
+
+[MIT](LICENSE).
