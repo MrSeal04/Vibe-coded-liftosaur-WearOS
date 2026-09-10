@@ -116,14 +116,17 @@ and the sharpest open question was settled:
   API key the phone published while the watch happened not to be listening — and the phone's
   own on-screen advice told the user to do the one thing that could not help. Fixed.
 
-Two gaps remain, both needing device time rather than design work:
+- **The key hand-off works end to end** — and getting there found a second bug. Both Data
+  Layer listeners were declared with a bind permission that Google Play services does not
+  hold on this watch, so every delivery was refused with nothing in the app's own logs. The
+  watch could not receive a key while closed, and the phone could not process the
+  acknowledgement that tells it to delete the key from the connection.
+- **Offline logging holds up.** Five sets logged in airplane mode landed on the server
+  exactly once when connectivity returned, with the queued finish draining *after* its sets
+  rather than overtaking them.
 
-1. **The phone → watch key hand-off, end to end.** The phone half is proven on hardware
-   — it validates the key, publishes it, and withdraws it when no acknowledgement arrives.
-   The watch half still needs the fixed build on the device.
-2. **The full offline sequence** — real airplane mode, a real force-stop, real WorkManager
-   scheduling. The paths underneath are covered by instrumented tests and the API semantics
-   were confirmed against the live server.
+Every test run against a disposable program that is deleted afterwards; the account is
+verified back to its exact prior state.
 
 ## A note on the training data
 
