@@ -105,22 +105,27 @@ Development commands, module layout and the design invariants are in
 454×454 Wear OS 6 emulator, at font scales 1.0 and 1.24.
 
 It has since run on a real Galaxy Watch 4 (Wear OS 6), where 61/61 instrumented tests passed
-and the sharpest open question was settled:
+and every gap that only hardware could close was closed:
 
 - **The rest timer is exact in Doze.** Sealed in forced deep idle with no debugger contact
   across the deadline, two alarms ten seconds apart fired **+15 ms** and **+3 ms** off target.
   `setExactAndAllowWhileIdle` is documented as rate-limited to roughly once per nine minutes
   in Doze; it is not, here, and the second alarm surviving is what proves it. The
   `setAlarmClock` fallback was never needed.
-- **Running it on hardware found a real bug**, as usual: the watch had no way to pick up an
-  API key the phone published while the watch happened not to be listening — and the phone's
-  own on-screen advice told the user to do the one thing that could not help. Fixed.
-
-- **The key hand-off works end to end** — and getting there found a second bug. Both Data
-  Layer listeners were declared with a bind permission that Google Play services does not
-  hold on this watch, so every delivery was refused with nothing in the app's own logs. The
-  watch could not receive a key while closed, and the phone could not process the
+- **Running it on hardware found real bugs**, as usual — three of them, all silent. The watch
+  had no way to pick up an API key the phone published while it happened not to be listening,
+  and the phone's own on-screen advice told you to do the one thing that could not help. Worse,
+  both Data Layer listeners were declared with a bind permission that Google Play services does
+  not hold on this watch, so every delivery was refused with nothing in the app's logs — the
+  key could not arrive while the app was closed, and the phone never processed the
   acknowledgement that tells it to delete the key from the connection.
+- **Ambient mode owns the screen**, confirming off-emulator the finding that drove Phase 6.
+  The burn-in orbit walk still has not run anywhere: this watch sets
+  `sys.burn_in_protection.enabled=1` in system properties but reports
+  `isBurnInProtectionRequired=false` to the app, and only the latter is what the code reads.
+- **The key hand-off works end to end**, including the deletion of the credential from the
+  Data Layer once the watch acknowledges it — a security property that until now had only
+  ever been tested against a fake transport.
 - **Offline logging holds up.** Five sets logged in airplane mode landed on the server
   exactly once when connectivity returned, with the queued finish draining *after* its sets
   rather than overtaking them.

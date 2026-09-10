@@ -81,7 +81,19 @@ means the system covers it with its own clock (what Settings gets — use it as 
 
 Measured 2026-09: Wear OS 6 gives LiftWear `TaskAmbiactive` even with nothing ambient-related
 composed, where Wear OS 4 gives `TaskAmbientLite` — test both images. The system ends an
-ambiactive session after **~60s**, returning to the watch face and `DOZE_SUSPEND`.
+ambiactive session after **~60s**, returning to the watch face and `DOZE_SUSPEND`. Confirmed
+on a real Galaxy Watch 4 (Wear OS 6), which settles on `TaskAmbiactive` with the app as target.
+
+**`screencap` cannot capture the ambient surface on real hardware.** Once the panel reaches
+`DOZE_SUSPEND` it is driven by display offload, so a screenshot returns the *watch face*; once
+the screen is fully OFF it returns a ~1.5KB black frame. Neither means your app failed to draw.
+Read ambient from logcat and with eyes — the emulator is the only place screenshots work.
+
+**Never read `sys.burn_in_protection.enabled` as what the app will be told.** A Galaxy Watch 4
+reports `1` for that property while Wear Compose hands the app
+`isBurnInProtectionRequired=false, isLowBitAmbientSupported=false`. Only the values carried on
+`AmbientMode.Ambient` drive the code, so log those instead:
+`Log.i(TAG, "burnIn=${mode.isBurnInProtectionRequired} lowBit=${mode.isLowBitAmbientSupported}")`.
 
 Force-stop and reboot before testing a negative: a killed process leaves registrations behind,
 and a guard only ever observed saying one thing has not been tested.
