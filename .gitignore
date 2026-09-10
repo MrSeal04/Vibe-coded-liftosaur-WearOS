@@ -27,3 +27,4 @@ output.json
 
 # --- OS ---
 .DS_Store
+keystore.properties

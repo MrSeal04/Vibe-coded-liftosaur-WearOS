@@ -24,6 +24,13 @@ it, get buzzed when rest is up — without pulling your phone out, and without a
 >   countdown that read "3M" for ninety seconds on a real watch face. A rep count crushed to a
 >   clipped sliver at large font on a small screen. None of those fail at compile time; all of
 >   them are in the git log with the screenshot that caught them.
+> - **The worst one needed a real watch.** Both Data Layer listeners were declared with
+>   `android:permission="com.google.android.gms.permission.BIND_LISTENER_SERVICE"` — which is
+>   what the documentation showed for years. Google Play services on a Galaxy Watch 4 does not
+>   hold that permission, so it refused every delivery, and the `SecurityException` landed
+>   inside Play services rather than in this app. The phone→watch key hand-off had therefore
+>   never worked at all, and it failed in the shape of a flaky Bluetooth link. No emulator, no
+>   test and no amount of reading would have caught it; a wrist did.
 > - **It was wrong out loud.** At least twice the model asserted something confidently, wrote a
 >   test for it, and the test disproved it. Those corrections are in the history too.
 >
@@ -78,13 +85,39 @@ All screenshots use invented sample data.
   the gym.
 - **No heart rate, no sensors, no Health Services.** By design. The app reads nothing about
   your body.
-- **Not published anywhere.** Sideload it.
+- **Not on the Play Store.** Sideload it — see [Install](#install). Play distribution would
+  additionally require swapping `USE_EXACT_ALARM` for `SCHEDULE_EXACT_ALARM` with a runtime
+  consent flow, and a `specialUse` foreground-service justification at review.
 
 ## Requirements
 
 - Wear OS 4 or newer (API 33+), round display.
 - A Liftosaur Premium API key (`lftsk_…`).
-- Android SDK with platform 37 and build-tools 37, JDK 21.
+- An Android phone, only to hand the key across — after that the watch is standalone.
+
+Verified end to end on a **Galaxy Watch 4 (SM-R860, Wear OS 6, 396×396)**, and on 396×396
+Wear OS 4 and 454×454 Wear OS 6 emulators at font scales 1.0 and 1.24.
+
+To build it yourself you also need the Android SDK with platform 37 and build-tools 37, and
+JDK 21.
+
+## Install
+
+Signed APKs are attached to each [release](../../releases/latest). **Install both** — the
+phone app is how your API key reaches the watch, and the two must come from the same release
+because the Wearable Data Layer refuses to pair apps whose signing certificates differ.
+
+```sh
+adb install -r liftwear-wear-<version>.apk      # to the watch
+adb install -r liftwear-phone-<version>.apk     # to the phone
+```
+
+Sideloading to a watch needs ADB debugging and Wireless debugging (two separate toggles) under
+Developer options, then `adb pair <ip>:<port>` and `adb connect <ip>:<port>`.
+
+Then open LiftWear on the phone, paste your key, and tap **Send to watch**. The watch stores it
+and acknowledges, and the phone deletes the key from the connection. If you would rather not
+install the phone app, Setup on the watch keeps manual entry one tap away.
 
 ## Build
 
@@ -93,8 +126,10 @@ All screenshots use invented sample data.
 adb install -r wear/build/outputs/apk/debug/wear-debug.apk
 ```
 
-Install the phone APK on your phone to hand the key across, or enter the key on the watch
-directly — Setup keeps manual entry one tap away.
+Release builds are signed from `~/.config/liftwear/keystore.properties`, which is deliberately
+outside the repo — a signing key is not recoverable, and losing it means no later build can
+upgrade an existing install. Without that file `assembleRelease` still builds, just unsigned,
+so a fresh clone is not blocked.
 
 Development commands, module layout and the design invariants are in
 [`CLAUDE.md`](CLAUDE.md).
