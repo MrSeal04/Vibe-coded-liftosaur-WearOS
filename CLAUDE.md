@@ -117,6 +117,12 @@ Three surfaces need a ticking timer and none of them may draw one:
 screen going off, process death and the app reopening. The buzz comes from
 `AlarmManager.setExactAndAllowWhileIdle`, never a coroutine `delay`.
 
+**Measured in forced deep Doze on a real Galaxy Watch 4 (2026-09-10): +15 ms and +3 ms.** The
+documented ~9-minute allow-while-idle quota does not apply there — two alarms ten seconds
+apart both kept their times — so `setAlarmClock` is not needed. To re-test, seal the watch
+with `dumpsys deviceidle force-idle` (not `step`, which lets a maintenance window through) and
+make no adb contact until past the deadline; touching adb wakes it and voids the run.
+
 `OngoingActivity.apply()` extends the builder it is *handed* and returns nothing — building the
 notification from a second builder silently drops the extras, with nothing in logcat and
 nothing in `dumpsys`. Always post through `update()`.

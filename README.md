@@ -104,17 +104,26 @@ Development commands, module layout and the design invariants are in
 162 unit tests and 61 instrumented tests, green on both a 396×396 Wear OS 4 emulator and a
 454×454 Wear OS 6 emulator, at font scales 1.0 and 1.24.
 
-Three things have never run on real hardware and are the honest gaps:
+It has since run on a real Galaxy Watch 4 (Wear OS 6), where 61/61 instrumented tests passed
+and the sharpest open question was settled:
 
-1. **The phone → watch key hand-off.** Everything either side of the transport is tested; the
-   transport needs a paired phone and a Google sign-in.
+- **The rest timer is exact in Doze.** Sealed in forced deep idle with no debugger contact
+  across the deadline, two alarms ten seconds apart fired **+15 ms** and **+3 ms** off target.
+  `setExactAndAllowWhileIdle` is documented as rate-limited to roughly once per nine minutes
+  in Doze; it is not, here, and the second alarm surviving is what proves it. The
+  `setAlarmClock` fallback was never needed.
+- **Running it on hardware found a real bug**, as usual: the watch had no way to pick up an
+  API key the phone published while the watch happened not to be listening — and the phone's
+  own on-screen advice told the user to do the one thing that could not help. Fixed.
+
+Two gaps remain, both needing device time rather than design work:
+
+1. **The phone → watch key hand-off, end to end.** The phone half is proven on hardware
+   — it validates the key, publishes it, and withdraws it when no acknowledgement arrives.
+   The watch half still needs the fixed build on the device.
 2. **The full offline sequence** — real airplane mode, a real force-stop, real WorkManager
    scheduling. The paths underneath are covered by instrumented tests and the API semantics
    were confirmed against the live server.
-3. **Rest-timer accuracy with the screen off and the wrist down.**
-   `setExactAndAllowWhileIdle` is rate-limited to roughly once per nine minutes in Doze, and
-   rests fire every one to three. The emulator did not throttle. `setAlarmClock` is the
-   one-line fallback if it does.
 
 ## A note on the training data
 

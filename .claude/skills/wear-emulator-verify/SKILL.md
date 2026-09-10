@@ -1,6 +1,6 @@
 ---
 name: wear-emulator-verify
-description: Verify LiftWear on the Wear OS emulators - AVD boot rules, installing before am start, the DesignGalleryActivity screenshot harness, font-scale sweeps and contact sheets, and driving ambient, Tiles and complications from adb. Use when a change needs to be seen on a watch, when capturing round-display screenshots, when running connectedAndroidTest, on "Activity class {...} does not exist", on a screencap that returns the watch face or a splash screen, on "Unrecognized operation" or "Complication slot is not enabled" from the debug surface, when a Tile or complication goes blank after a test run, when both emulators die at once, or when checking whether the app owns the ambient screen.
+description: Verify LiftWear on the Wear OS emulators - AVD boot rules, installing before am start, the DesignGalleryActivity screenshot harness, font-scale sweeps and contact sheets, and driving ambient, Tiles and complications from adb. Use when a change needs to be seen on a watch, when capturing round-display screenshots, when running connectedAndroidTest, on "Activity class {...} does not exist", on a screencap that returns the watch face or a splash screen, on "Unrecognized operation" or "Complication slot is not enabled" from the debug surface, when a Tile or complication goes blank after a test run, when both emulators die at once, when checking whether the app owns the ambient screen, or when testing on a real watch over Wi-Fi - a serial containing "(2)" that ANDROID_SERIAL reports as "device not found", a link that drops between commands or mid-install, "connection refused" on an address mDNS still lists, a screencap returning the charging AOD or a locked watch face, or forcing Doze to measure whether setExactAndAllowWhileIdle alarms get deferred.
 ---
 
 # Wear OS emulator verification
@@ -101,10 +101,81 @@ adb connect <ip>:<connect-port>
 Pairing leaves **two transports** for one device (the mDNS name and the explicit `ip:port`), so
 every later command needs a target. **Do not use `adb $FLAGS`** — this shell is zsh, which does
 not word-split unquoted variables, so `-s <ip>` arrives as one argument and adb answers
-`-s requires an argument`. Use `export ANDROID_SERIAL=<ip:port>` instead.
+`-s requires an argument`.
 
-**Doze never engages while charging**, so any rest-timer or alarm test has to run off the
-charger. Check `dumpsys battery` for level and status before starting one.
+**A re-pairing appends `(2)` to the mDNS name**, giving a serial with a space in it
+(`adb-<serial>-<suffix> (2)._adb-tls-connect._tcp`). `ANDROID_SERIAL` silently fails to match
+that — every command answers `device not found` while `adb devices` clearly lists it. Quote it
+into `-s` instead: `adb -s "$W" …` (verified 2026-09).
+
+**The watch drops Wi-Fi whenever it idles**, so the transport dies between commands and a
+54 MB `install` usually dies mid-transfer. Wear OS 6 has no "Wi-Fi always on" setting to stop
+it. Wrap adb so every call re-resolves and reconnects first — that turns a dead session into a
+few seconds of retry:
+
+```sh
+ok() { adb devices | grep -q "^${W}	device"; }
+if ! ok; then for i in $(seq 1 12); do
+    addr=$(adb mdns services | grep '_adb-tls-connect' | awk '{print $3}' | head -1)
+    [ -n "$addr" ] && adb connect "$addr" >/dev/null 2>&1; ok && break; sleep 3
+done; fi
+adb -s "$W" "$@"
+```
+
+The advertised port goes stale after a drop — `connection refused` on a name mDNS still lists
+means `adb kill-server && adb start-server` to flush the cache, then re-read the port.
+
+**A charging Galaxy Watch is useless for screen tests.** On the puck the system's charging AOD
+owns the display outright (`AmbientTaskStateMachine: -> TaskForcedAmbient. Reason: forced
+ambient`, logged from the *sysui* pid, not the app's), so `am start` succeeds, the app draws,
+and the screencap is a battery percentage. Ambient and always-on can only be tested on battery.
+
+**A watch off the wrist locks itself.** `dumpsys trust` shows `deviceLocked=1`; `am start`
+reports success and screencaps return the watch face. `input swipe 198 340 198 60` clears a
+swipe-only lock (`deviceLocked=0` afterwards proves it), but a PIN needs a human — do not type
+one over adb.
+
+**Cold start is ~10s** on real hardware, not the ~5s the emulator needs. `mCurrentFocus=null`
+right after `am start` usually means you looked too early, not that it failed.
+
+### Doze, without taking the watch off the charger
+
+**Doze never engages while charging** — but the framework can be lied to, which is the only
+practical way to test a rest timer on a watch whose battery you are trying to preserve:
+
+```sh
+adb -s "$W" shell dumpsys battery unplug        # framework now believes it is on battery
+adb -s "$W" shell input keyevent 223            # screen off
+adb -s "$W" shell dumpsys deviceidle force-idle # holds IDLE; "step" does NOT
+adb -s "$W" shell dumpsys deviceidle unforce    # ALWAYS undo both of these
+adb -s "$W" shell dumpsys battery reset
+```
+
+**Use `force-idle`, not `step`.** `step` only advances the state machine one notch, so the
+device opens a maintenance window on its own a couple of minutes later (`DeviceIdleController.deep`
+in the alarm log) and the measurement is no longer under Doze. `force-idle` prints
+`Now forced in to deep idle mode` and holds until `unforce`. Either way it stays `ACTIVE`
+forever if the unplug did not take — check `dumpsys battery` shows it unpowered first.
+
+**Touching adb pulls the device out of idle**, so a wrapper that reconnects will silently ruin
+the run. Verify the alarms are scheduled *before* sealing, then make no contact at all until
+well past the deadline, and confirm `get deep` still says `IDLE` on first contact afterwards.
+
+**Verify the rest actually armed.** `am start` that prints nothing scheduled nothing, and the
+run measures an empty queue. A pending alarm must show a *future* `origWhen`; entries under
+`Reason=pi_cancelled` are the removal history, not pending — `-S` force-stops the app, and that
+cancels its alarms.
+
+Read the result off the alarm itself rather than waiting for a buzz: in `dumpsys alarm`,
+**`whenElapsed == maxWhenElapsed` means no deferral window was applied**, and the gap between
+two alarms surviving intact is what disproves a rate limit. `exactAllowReason=policy_permission`
+confirms `USE_EXACT_ALARM` was install-granted; `flags=0x5` is
+`STANDALONE|ALLOW_WHILE_IDLE`, i.e. genuinely `setExactAndAllowWhileIdle`.
+
+Measured 2026-09 on a Galaxy Watch 4 (Wear OS 6), sealed in forced deep idle with no adb contact
+across the deadline: two rest alarms 10s apart fired **+15ms and +3ms** off their targets, both
+waking the device. The feared ~9-minute allow-while-idle quota does **not** bite there, so
+`setExactAndAllowWhileIdle` is sufficient and `setAlarmClock` is not needed.
 
 ## Tiles and complications
 
