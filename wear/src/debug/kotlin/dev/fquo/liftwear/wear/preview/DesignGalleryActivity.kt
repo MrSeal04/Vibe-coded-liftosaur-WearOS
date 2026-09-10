@@ -247,7 +247,16 @@ private fun Gallery(screen: String) {
                 label = "Squat · set 2 / 4",
             )
             AmbientAware(
-                ambient = { mode -> AmbientWorkoutSurface(mode, workout, rest) },
+                ambient = { mode ->
+                    // No emulator reports either capability, so what a real panel asks for
+                    // has never been observed. Logged rather than guessed.
+                    android.util.Log.i(
+                        "LiftWearAmbient",
+                        "ambient: burnIn=${mode.isBurnInProtectionRequired} " +
+                            "lowBit=${mode.isLowBitAmbientSupported}",
+                    )
+                    AmbientWorkoutSurface(mode, workout, rest)
+                },
             ) {
                 AppScaffold {
                     ExerciseFocusPage(

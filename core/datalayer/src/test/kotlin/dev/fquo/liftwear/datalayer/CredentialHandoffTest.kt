@@ -20,21 +20,38 @@ class CredentialHandoffTest {
         var deleteCount = 0
         var itemsPresent = 0
 
+        /** What a sweep would find sitting in the Data Layer, and which node published it. */
+        var published: CredentialPayload? = null
+        var publishedBy = "phone"
+
         override suspend fun put(payload: CredentialPayload) {
             puts += payload
             itemsPresent = 1
+            published = payload
         }
 
         override suspend fun deleteCredentials(): Int {
             deleteCount++
             val removed = itemsPresent
             itemsPresent = 0
+            published = null
             return removed
         }
 
         override suspend fun sendAck(nodeId: String) {
             acks += nodeId
         }
+
+        override suspend fun pendingCredentials(): List<IncomingCredential> =
+            published?.let {
+                listOf(
+                    IncomingCredential(
+                        path = DataLayerContract.PATH_CREDENTIALS,
+                        sourceNodeId = publishedBy,
+                        payload = it,
+                    )
+                )
+            } ?: emptyList()
     }
 
     private fun payload(key: String = "lftsk_test_key", issuedAt: Long = 1_000L) =
@@ -198,5 +215,69 @@ class CredentialHandoffTest {
         intake.accept(listOf(incoming())) {}
         intake.accept(listOf(incoming())) {}
         assertEquals(listOf("node-phone", "node-phone"), transport.acks)
+    }
+
+    // --- the sweep: intake for a DataItem that arrived while nothing was listening ---
+
+    /**
+     * The defect this covers was found on real hardware: the phone published the key and
+     * sat on "Waiting for the watch to confirm" indefinitely, because the watch's only
+     * intake was a live `onDataChanged` and nothing re-delivers a missed DataItem. Opening
+     * the app on the watch - which the phone explicitly tells the user to do - did nothing.
+     */
+    @Test
+    fun `sweep picks up a credential already published`() = runTest {
+        val transport = FakeTransport()
+        CredentialHandoff(transport) { 1_000L }.offer("lftsk_swept")
+
+        var stored: String? = null
+        val accepted = CredentialIntake(transport, now = { 1_000L }).sweep { stored = it }
+
+        assertTrue(accepted)
+        assertEquals("lftsk_swept", stored)
+        assertEquals(listOf("phone"), transport.acks)
+    }
+
+    /** Nothing published means nothing stored, and above all no spurious ack. */
+    @Test
+    fun `sweep is a no-op when the data layer is empty`() = runTest {
+        val transport = FakeTransport()
+        var stored: String? = null
+
+        assertFalse(CredentialIntake(transport).sweep { stored = it })
+        assertNull(stored)
+        assertTrue(transport.acks.isEmpty())
+    }
+
+    /**
+     * A swept item obeys the same TTL as a delivered one: too old to store, but still acked
+     * so the phone clears it instead of leaving a bearer token replicating.
+     */
+    @Test
+    fun `sweep acks a stale credential without storing it`() = runTest {
+        val transport = FakeTransport()
+        CredentialHandoff(transport) { 1_000L }.offer("lftsk_ancient")
+
+        var stored: String? = null
+        val now = 1_000L + DataLayerContract.CREDENTIAL_TTL_MILLIS + 1
+        val accepted = CredentialIntake(transport, now = { now }).sweep { stored = it }
+
+        assertFalse(accepted)
+        assertNull(stored)
+        assertEquals(listOf("phone"), transport.acks)
+    }
+
+    /** The ack the sweep sends must retire the item, exactly as a delivered one does. */
+    @Test
+    fun `a swept credential is deleted once the phone sees the ack`() = runTest {
+        val transport = FakeTransport()
+        val phone = CredentialHandoff(transport) { 1_000L }
+        phone.offer("lftsk_swept")
+
+        CredentialIntake(transport, now = { 1_000L }).sweep { }
+        assertTrue(phone.onAck(DataLayerContract.PATH_CREDENTIALS_ACK))
+
+        assertEquals(0, transport.itemsPresent)
+        assertTrue(transport.pendingCredentials().isEmpty())
     }
 }

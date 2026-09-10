@@ -6,6 +6,7 @@ import dev.fquo.liftwear.api.ApiResult
 import dev.fquo.liftwear.api.LiftosaurError
 import dev.fquo.liftwear.data.LiftWearContainer
 import dev.fquo.liftwear.data.credentials.CredentialStore
+import dev.fquo.liftwear.datalayer.CredentialIntake
 import dev.fquo.liftwear.datalayer.DataLayerContract
 import dev.fquo.liftwear.datalayer.WearableNodes
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,12 +39,37 @@ data class SetupUiState(
 class SetupViewModel(
     private val container: LiftWearContainer,
     private val nodes: WearableNodes,
+    private val intake: CredentialIntake,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SetupUiState())
     val state: StateFlow<SetupUiState> = _state.asStateFlow()
 
-    init { refreshPhone() }
+    init {
+        refreshPhone()
+        sweepForCredential()
+    }
+
+    /**
+     * Picks up a key the phone published while nothing was listening.
+     *
+     * `CredentialListenerService` only ever sees a live `onDataChanged`, and nothing
+     * re-delivers a DataItem that was missed - so without this sweep the watch could sit on
+     * Setup with the key already sitting in its own Data Layer, while the phone waited
+     * forever for an ack. That is exactly what "Open LiftWear on your watch if it does not
+     * pick this up" on the phone promises, and until now opening it did nothing.
+     *
+     * Failures are deliberately silent: this is a background recovery path, and the screen
+     * it runs behind already offers manual entry.
+     */
+    private fun sweepForCredential() {
+        viewModelScope.launch {
+            val accepted = runCatching {
+                intake.sweep { key -> container.setApiKey(key) }
+            }.getOrDefault(false)
+            if (accepted) _state.value = _state.value.copy(done = true)
+        }
+    }
 
     /**
      * Distinguishes "no phone" from "phone without the app" - the advice differs, and a

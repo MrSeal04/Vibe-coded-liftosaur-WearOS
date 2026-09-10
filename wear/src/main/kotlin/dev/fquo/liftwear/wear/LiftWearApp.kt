@@ -17,6 +17,9 @@ import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import dev.fquo.liftwear.data.LiftWearContainer
+import androidx.compose.ui.platform.LocalContext
+import dev.fquo.liftwear.datalayer.CredentialIntake
+import dev.fquo.liftwear.datalayer.WearableCredentialTransport
 import dev.fquo.liftwear.datalayer.WearableNodes
 import dev.fquo.liftwear.wear.ambient.AmbientAware
 import dev.fquo.liftwear.wear.ambient.AmbientWorkoutSurface
@@ -252,12 +255,16 @@ private fun rememberContainerFactory(
     nodes: WearableNodes,
     session: WorkoutSession,
     version: String,
-): ViewModelProvider.Factory = remember(container, nodes, session) {
-    viewModelFactory {
-        initializer { SetupViewModel(container, nodes) }
-        initializer { HomeViewModel(container) }
-        initializer { WorkoutViewModel(container, session) }
-        initializer { SettingsViewModel(container, version) }
-        initializer { HistoryViewModel(container) }
+): ViewModelProvider.Factory {
+    val context = LocalContext.current.applicationContext
+    return remember(container, nodes, session, context) {
+        val intake = CredentialIntake(WearableCredentialTransport(context))
+        viewModelFactory {
+            initializer { SetupViewModel(container, nodes, intake) }
+            initializer { HomeViewModel(container) }
+            initializer { WorkoutViewModel(container, session) }
+            initializer { SettingsViewModel(container, version) }
+            initializer { HistoryViewModel(container) }
+        }
     }
 }

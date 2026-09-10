@@ -27,6 +27,16 @@ interface CredentialTransport {
     suspend fun deleteCredentials(): Int
 
     suspend fun sendAck(nodeId: String)
+
+    /**
+     * Credentials already sitting in the Data Layer, as [IncomingCredential]s.
+     *
+     * A DataItem persists until deleted, so one that arrived while the watch app was not
+     * listening is still there to be found - but nothing re-delivers it. Without this the
+     * only intake path is a live `onDataChanged`, and a single missed callback strands the
+     * key: the watch never acks, and the phone waits on an ack that cannot come.
+     */
+    suspend fun pendingCredentials(): List<IncomingCredential>
 }
 
 /**
@@ -98,6 +108,15 @@ class CredentialIntake(
         }
         return accepted
     }
+
+    /**
+     * Intake for a credential that was published while nothing was listening.
+     *
+     * Same rules as [accept] - it is the same call - so a swept item that is stale is acked
+     * and discarded exactly as a delivered one would be.
+     */
+    suspend fun sweep(store: suspend (String) -> Unit): Boolean =
+        accept(transport.pendingCredentials(), store)
 
     // A clock skewed into the future is as suspect as an item that is too old.
     private fun isStale(payload: CredentialPayload): Boolean {

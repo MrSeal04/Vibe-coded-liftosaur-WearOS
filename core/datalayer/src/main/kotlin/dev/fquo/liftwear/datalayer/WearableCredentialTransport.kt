@@ -3,6 +3,7 @@ package dev.fquo.liftwear.datalayer
 import android.content.Context
 import android.net.Uri
 import com.google.android.gms.wearable.DataClient
+import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.PutDataRequest
 import com.google.android.gms.wearable.CapabilityClient
@@ -35,12 +36,40 @@ class WearableCredentialTransport(context: Context) : CredentialTransport {
      * has to be gone everywhere, not merely locally.
      */
     override suspend fun deleteCredentials(): Int = withContext(Dispatchers.IO) {
-        val uri = Uri.Builder()
-            .scheme(PutDataRequest.WEAR_URI_SCHEME)
-            .authority("*")
-            .path(DataLayerContract.PATH_CREDENTIALS)
-            .build()
-        dataClient.deleteDataItems(uri).await()
+        dataClient.deleteDataItems(credentialsUri()).await()
+    }
+
+    /** Wildcard host: every node's copy, not merely this one's. */
+    private fun credentialsUri(): Uri = Uri.Builder()
+        .scheme(PutDataRequest.WEAR_URI_SCHEME)
+        .authority("*")
+        .path(DataLayerContract.PATH_CREDENTIALS)
+        .build()
+
+    /**
+     * Reads whatever is already published at the credentials path, on any node.
+     *
+     * The buffer from [DataClient.getDataItems] must be released or it leaks the underlying
+     * native memory, so it is drained into plain data classes inside `use`.
+     */
+    override suspend fun pendingCredentials(): List<IncomingCredential> = withContext(Dispatchers.IO) {
+        val uri = credentialsUri()
+        runCatching {
+            dataClient.getDataItems(uri).await().use { buffer ->
+                buffer.mapNotNull { item ->
+                    if (item.uri.path != DataLayerContract.PATH_CREDENTIALS) return@mapNotNull null
+                    val map = DataMapItem.fromDataItem(item).dataMap
+                    IncomingCredential(
+                        path = DataLayerContract.PATH_CREDENTIALS,
+                        sourceNodeId = item.uri.host.orEmpty(),
+                        payload = CredentialPayload(
+                            apiKey = map.getString(DataLayerContract.KEY_API_KEY).orEmpty(),
+                            issuedAt = map.getLong(DataLayerContract.KEY_ISSUED_AT),
+                        ),
+                    )
+                }
+            }
+        }.getOrDefault(emptyList())
     }
 
     override suspend fun sendAck(nodeId: String) {

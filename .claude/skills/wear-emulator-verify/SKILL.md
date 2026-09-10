@@ -13,6 +13,7 @@ browser-only and does not apply here.
 ```sh
 source ~/.androidenv     # JAVA_HOME + ANDROID_HOME; without it Gradle dies immediately
 export PATH="$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools"
+export ANDROID_SERIAL=<serial>   # with more than one target; see the real-hardware note"
 ./gradlew --stop         # frees ~2GB before booting
 nohup emulator -avd LiftWear_Large -no-snapshot-save -no-audio \
       -gpu swiftshader_indirect > /tmp/emu.log 2>&1 &
@@ -41,7 +42,11 @@ sleep 5 && adb exec-out screencap -p > shot.png
   returns the watch face.
 - **Wait ~5s, not 2.** Two seconds captures the dumbbell splash.
 - A screencap showing the watch face means the app never took focus — check
-  `adb shell dumpsys window | grep mCurrentFocus`.
+  `adb shell dumpsys window | grep mCurrentFocus`. On a **real, locked** watch that is the
+  keyguard: `mCurrentFocus=…KeyguardLayer…` while `mFocusedApp` is your activity, and
+  `dumpsys window policy` says `mIsShowing=true`. `am start` reports success either way and
+  the screencap is silently the watch face. A swipe will not clear a PIN — the user must
+  unlock, and a worn watch then stays unlocked while a charging one re-locks.
 - Screens live in `DesignGalleryActivity`: `focus`, `focus-long`, `focus-bodyweight`,
   `confirm`, `home`, `home-idle`, `rest*`, `ambient*`, `setup*`. Sample data only, so this
   writes nothing to the live Liftosaur account.
@@ -80,6 +85,26 @@ ambiactive session after **~60s**, returning to the watch face and `DOZE_SUSPEND
 
 Force-stop and reboot before testing a negative: a killed process leaves registrations behind,
 and a guard only ever observed saying one thing has not been tested.
+
+## A real watch, over Wi-Fi
+
+**ADB debugging and Wireless debugging are two separate toggles** — the first alone exposes
+nothing to the network, and `adb mdns services` stays empty. With both on, discovery gives you
+the address and you never have to read numbers off the watch:
+
+```sh
+adb mdns services          # _adb-tls-pairing._tcp and _adb-tls-connect._tcp, different ports
+adb pair <ip>:<pairing-port> <6-digit code>
+adb connect <ip>:<connect-port>
+```
+
+Pairing leaves **two transports** for one device (the mDNS name and the explicit `ip:port`), so
+every later command needs a target. **Do not use `adb $FLAGS`** — this shell is zsh, which does
+not word-split unquoted variables, so `-s <ip>` arrives as one argument and adb answers
+`-s requires an argument`. Use `export ANDROID_SERIAL=<ip:port>` instead.
+
+**Doze never engages while charging**, so any rest-timer or alarm test has to run off the
+charger. Check `dumpsys battery` for level and status before starting one.
 
 ## Tiles and complications
 
