@@ -1,6 +1,6 @@
 ---
 name: wear-emulator-verify
-description: Verify LiftWear on the Wear OS emulators - AVD boot rules, installing before am start, the DesignGalleryActivity screenshot harness, font-scale sweeps and contact sheets, and driving ambient, Tiles and complications from adb. Use when a change needs to be seen on a watch, when capturing round-display screenshots, when running connectedAndroidTest, on "Activity class {...} does not exist", on a screencap that returns the watch face or a splash screen, on "Unrecognized operation" or "Complication slot is not enabled" from the debug surface, when a Tile or complication goes blank after a test run, when both emulators die at once, when checking whether the app owns the ambient screen, or when testing on a real watch over Wi-Fi - a serial containing "(2)" that ANDROID_SERIAL reports as "device not found", a link that drops between commands or mid-install, "connection refused" on an address mDNS still lists, a screencap returning the charging AOD or a locked watch face, or forcing Doze to measure whether setExactAndAllowWhileIdle alarms get deferred, or measuring jank and cold start on a real watch - dexopt "status=verify" after a sideload, "Failure while dumping the app" from gfxinfo, or meminfo counting several Activities from stacked launches.
+description: Verify LiftWear on the Wear OS emulators - AVD boot rules, installing before am start, the DesignGalleryActivity screenshot harness, font-scale sweeps and contact sheets, and driving ambient, Tiles and complications from adb. Use when a change needs to be seen on a watch, when capturing round-display screenshots, when running connectedAndroidTest, on "Activity class {...} does not exist", on a screencap that returns the watch face or a splash screen, on "Unrecognized operation" or "Complication slot is not enabled" from the debug surface, when a Tile or complication goes blank after a test run, when both emulators die at once, when checking whether the app owns the ambient screen, or when testing on a real watch over Wi-Fi - a serial containing "(2)" that ANDROID_SERIAL reports as "device not found", a link that drops between commands or mid-install, "connection refused" on an address mDNS still lists, a screencap returning the charging AOD or a locked watch face, or forcing Doze to measure whether setExactAndAllowWhileIdle alarms get deferred, or measuring jank and cold start on a real watch - dexopt "status=verify" after a sideload, "Failure while dumping the app" from gfxinfo, or meminfo counting several Activities from stacked launches, or pulling the app's debug log (content read on the debuglog provider), proving a crash lands in it, or "INSTALL_FAILED_UPDATE_INCOMPATIBLE" from connectedAndroidTest, or tapping a watch or phone button over adb (uiautomator dump), or the phone companion saying "LiftWear is not on the watch" with the app installed.
 ---
 
 # Wear OS emulator verification
@@ -276,3 +276,43 @@ relying on `adb devices` having been empty earlier.
 `--tests` is not accepted; filter with
 `-Pandroid.testInstrumentationRunnerArguments.package=dev.fquo.liftwear.wear.ambient`.
 Results (counts, failures) are in `*/build/outputs/androidTest-results/connected/debug/*.xml`.
+Read them with `find … -name '*.xml'`, not a glob: in zsh an unmatched glob aborts the command.
+A stale **release**-signed install on the emulator makes the next run fail with
+`INSTALL_FAILED_UPDATE_INCOMPATIBLE`; uninstall it from the emulator first.
+
+## Reading the debug log
+
+```sh
+adb shell content read --uri content://dev.fquo.liftwear.debuglog/log > liftwear-debug.log
+```
+
+The provider is gated on `DUMP`, which the adb shell holds, so no `run-as` or debuggable build is
+needed - verified 2026-09-10 on the release build, on the Galaxy Watch 4 over the `(2)` serial
+(`adb -s "$W" shell content read …`) as well as on the emulator. The watch → phone path
+(Settings → **Send log to phone**) was verified the same day: the watch's own log records
+`… saved the debug log (N bytes)`, which only prints when the phone's byte count matches.
+
+On the emulator (2026-09-10):
+
+- `--ei liveRestSeconds 14` writes `alarm warning fired, +2ms against …` and `alarm done fired`
+  lines - the cheapest way to see whether alarms are being deferred. The emulator also logs
+  `notifications are off, so there is no watch-face chip`.
+- `--es screen crash` (debug gallery) crashes on purpose. Relaunch and the log holds the stack
+  trace under `E Crash`, then `previous process ended …: CRASH` from the next start.
+
+## Driving the watch UI over adb
+
+- **Do the whole navigation in one command.** Between separate commands the Galaxy Watch 4 fell
+  back to the watch face within about a minute, and the next swipe opened the app launcher
+  instead. Wake, `am start`, navigate and tap together, and gate every tap on `mCurrentFocus`
+  still being LiftWear.
+- **Find a button by its text, not a remembered coordinate.** `adb shell uiautomator dump
+  /sdcard/ui.xml` works on Wear OS 6 and on the phone, and lists Compose text nodes with
+  `bounds`; tap the centre. A coordinate from an earlier screenshot hit **Resume** instead of
+  Settings once, because Home scrolls differently after a cold start.
+- The debug log's `Nav` lines say which screen a tap really reached - cheaper than a screenshot.
+- Opening the workout screen on a watch without `POST_NOTIFICATIONS` raises the system permission
+  dialog, which then owns focus. Leave the answer to the user.
+- A release with resource shrinking drops `array/android_wear_capabilities` unless
+  `wear/src/main/res/raw/keep.xml` keeps it; the phone companion then says "LiftWear is not on the
+  watch" with the app installed. Check with `aapt2 dump resources` (verified 2026-09-10).
