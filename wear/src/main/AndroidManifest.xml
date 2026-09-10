@@ -105,10 +105,19 @@
             android:name=".rest.RestAlarmReceiver"
             android:exported="false" />
 
+        <!--
+            No android:permission here, deliberately. Declaring
+            com.google.android.gms.permission.BIND_LISTENER_SERVICE gates who may *bind* to
+            this service, and Google Play services on a Galaxy Watch 4 does not hold it - so
+            every delivery was refused with "Permission Denial: ... requires
+            com.google.android.gms.permission.BIND_LISTENER_SERVICE" and a SecurityException
+            inside WearableService, none of it visible to this app. The key then only ever
+            arrived via SetupViewModel's sweep, i.e. never while the app was closed, which is
+            the case this service exists for.
+        -->
         <service
             android:name=".sync.CredentialListenerService"
-            android:exported="true"
-            android:permission="com.google.android.gms.permission.BIND_LISTENER_SERVICE">
+            android:exported="true">
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
                 <data
